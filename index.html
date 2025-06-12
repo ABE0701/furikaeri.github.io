@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>授業振り返り レポート</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDKのインポート -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebaseの設定情報を取得
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // アプリケーションIDを取得（存在しない場合はデフォルト値を設定）
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // Firebaseアプリの初期化
+        const app = initializeApp(firebaseConfig);
+        // AuthサービスとFirestoreサービスの取得
+        window.auth = getAuth(app); // グローバルに公開
+        window.db = getFirestore(app); // グローバルに公開
+
+        // 認証状態の監視と初期サインイン
+        onAuthStateChanged(window.auth, async (user) => {
+            if (!user) {
+                // 認証トークンが存在する場合はそれを使用、ない場合は匿名でサインイン
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    try {
+                        await signInWithCustomToken(window.auth, __initial_auth_token);
+                        console.log("Firebase: Signed in with custom token.");
+                    } catch (error) {
+                        console.error("Firebase: Error signing in with custom token:", error);
+                        // カスタムトークンでサインイン失敗した場合、匿名でサインインを試みる
+                        try {
+                            await signInAnonymously(window.auth);
+                            console.log("Firebase: Signed in anonymously after custom token failure.");
+                        } catch (anonError) {
+                            console.error("Firebase: Error signing in anonymously:", anonError);
+                        }
+                    }
+                } else {
+                    try {
+                        await signInAnonymously(window.auth);
+                        console.log("Firebase: Signed in anonymously.");
+                    } catch (error) {
+                        console.error("Firebase: Error signing in anonymously:", error);
+                    }
+                }
+            } else {
+                console.log("Firebase: User already signed in.", user.uid);
+                // ユーザーIDをグローバルに公開 (必要に応じて)
+                window.userId = user.uid;
+            }
+        });
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif; /* Font family correction */
+            background-color: #f8f9fa;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            height: 350px;
+            margin: auto;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+        }
+        .nav-button.active {
+            background-color: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .date-tab.active {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900">授業振り返り レポート</h1>
+            <p class="text-slate-600 mt-2">クラス全体の学習状況を多角的に分析します。</p>
+        </header>
+
+        <nav class="flex justify-center gap-2 md:gap-4 mb-8 flex-wrap">
+            <button id="nav-byStudent" class="nav-button active font-semibold py-2 px-4 rounded-lg bg-white shadow-sm">生徒別レポート</button>
+            <button id="nav-dateRatio" class="nav-button font-semibold py-2 px-4 rounded-lg bg-white shadow-sm">日付ごとの割合分析</button>
+        </nav>
+
+        <main>
+            <div id="byStudent-view">
+                <section class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-bold mb-4 text-slate-800">生徒別の学習カルテ</h2>
+                    <p class="text-slate-600 mb-6">ドロップダウンメニューから出席番号を選択すると、その生徒個人の学習の軌跡が表示されます。評価点の推移グラフと、各授業での具体的な振り返り内容から、個々の成長と課題を確認できます。</p>
+                    <div class="max-w-xs mx-auto mb-8">
+                        <label for="student-selector" class="block text-sm font-medium text-slate-700 mb-1">出席番号を選択してください</label>
+                        <select id="student-selector" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">選択...</option>
+                        </select>
+                    </div>
+                    
+                    <div id="student-report-card" class="hidden">
+                           <div class="chart-container mb-8">
+                               <canvas id="studentChart"></canvas>
+                           </div>
+                        <div id="student-reflections" class="space-y-6"></div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="dateRatio-view" class="hidden">
+                   <section class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-bold mb-2 text-slate-800">授業日ごとの点数割合</h2>
+                    <p class="text-slate-600 mb-6">ここでは、各授業日における「知識の習得」と「思考力の深化」の各点数を取得した生徒の割合を円グラフで表示します。また、その日の生徒の感想もいくつか掲載しています。</p>
+                    <div class="flex border-b mb-6">
+                        <button class="date-tab flex-1 py-3 font-semibold text-slate-600 border-b-2 border-transparent" data-date-id="20250602">6月2日</button>
+                        <button class="date-tab flex-1 py-3 font-semibold text-slate-600 border-b-2 border-transparent" data-date-id="20250603">6月3日</button>
+                        <button class="date-tab flex-1 py-3 font-semibold text-slate-600 border-b-2 border-transparent" data-date-id="20250610">6月10日</button>
+                    </div>
+                    
+                    <div id="date-ratio-20250602" class="date-ratio-content">
+                        <h3 class="text-xl font-bold text-blue-700 mb-2">2025年6月2日: 点数別生徒割合</h3>
+                        <p id="summary-20250602" class="text-slate-700 text-lg mb-4"></p>
+                        <div class="flex flex-col md:flex-row justify-center items-center gap-6">
+                            <div class="chart-container !h-[300px] !max-h-[300px] !max-w-[400px]">
+                                <h4 class="text-lg font-semibold text-slate-700 mb-2 text-center">知識の習得</h4>
+                                <canvas id="ratioChart-Knowledge-20250602"></canvas>
+                            </div>
+                            <div class="chart-container !h-[300px] !max-h-[300px] !max-w-[400px]">
+                                <h4 class="text-lg font-semibold text-slate-700 mb-2 text-center">思考力の深化</h4>
+                                <canvas id="ratioChart-Thought-20250602"></canvas>
+                            </div>
+                        </div>
+                        <div class="space-y-6 mt-8 p-4 bg-slate-100 rounded-lg">
+                            <h4 class="font-bold text-lg text-slate-800 mb-3">この日の学習の内容</h4>
+                            <p id="learning-summary-20250602" class="text-slate-700 mb-4"></p>
+                            <h4 class="font-bold text-lg text-slate-800 mb-3">この日の高評価だった生徒の感想</h4>
+                            <div id="student-reflections-for-date-20250602" class="space-y-4"></div>
+                        </div>
+                    </div>
+                     <div id="date-ratio-20250603" class="date-ratio-content hidden">
+                        <h3 class="text-xl font-bold text-blue-700 mb-2">2025年6月3日: 点数別生徒割合</h3>
+                        <p id="summary-20250603" class="text-slate-700 text-lg mb-4"></p>
+                        <div class="flex flex-col md:flex-row justify-center items-center gap-6">
+                            <div class="chart-container !h-[300px] !max-h-[300px] !max-w-[400px]">
+                                <h4 class="text-lg font-semibold text-slate-700 mb-2 text-center">知識の習得</h4>
+                                <canvas id="ratioChart-Knowledge-20250603"></canvas>
+                            </div>
+                            <div class="chart-container !h-[300px] !max-h-[300px] !max-w-[400px]">
+                                <h4 class="text-lg font-semibold text-slate-700 mb-2 text-center">思考力の深化</h4>
+                                <canvas id="ratioChart-Thought-20250603"></canvas>
+                            </div>
+                        </div>
+                        <div class="space-y-6 mt-8 p-4 bg-slate-100 rounded-lg">
+                            <h4 class="font-bold text-lg text-slate-800 mb-3">この日の学習の内容</h4>
+                            <p id="learning-summary-20250603" class="text-slate-700 mb-4"></p>
+                            <h4 class="font-bold text-lg text-slate-800 mb-3">この日の高評価だった生徒の感想</h4>
+                            <div id="student-reflections-for-date-20250603" class="space-y-4"></div>
+                        </div>
+                    </div>
+                     <div id="date-ratio-20250610" class="date-ratio-content hidden">
+                        <h3 class="text-xl font-bold text-blue-700 mb-2">2025年6月10日: 点数別生徒割合</h3>
+                        <p id="summary-20250610" class="text-slate-700 text-lg mb-4"></p>
+                        <div class="flex flex-col md:flex-row justify-center items-center gap-6">
+                            <div class="chart-container !h-[300px] !max-h-[300px] !max-w-[400px]">
+                                <h4 class="text-lg font-semibold text-slate-700 mb-2 text-center">知識の習得</h4>
+                                <canvas id="ratioChart-Knowledge-20250610"></canvas>
+                            </div>
+                            <div class="chart-container !h-[300px] !max-h-[300px] !max-w-[400px]">
+                                <h4 class="text-lg font-semibold text-slate-700 mb-2 text-center">思考力の深化</h4>
+                                <canvas id="ratioChart-Thought-20250610"></canvas>
+                            </div>
+                        </div>
+                        <div class="space-y-6 mt-8 p-4 bg-slate-100 rounded-lg">
+                            <h4 class="font-bold text-lg text-slate-800 mb-3">この日の学習の内容</h4>
+                            <p id="learning-summary-20250610" class="text-slate-700 mb-4"></p>
+                            <h4 class="font-bold text-lg text-slate-800 mb-3">この日の高評価だった生徒の感想</h4>
+                            <div id="student-reflections-for-date-20250610" class="space-y-4"></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 生徒の学習データを定義
+        const studentData = [
+            { id: 6, date: '2025/06/10', goal: '分母の√を消す計算をできるようにする', knowledge: 10, thought: 9, k_text: '理解できていなかった部分をひなみちゃんに教えてもらいできるようになった。', t_text: '分母が√a+bになっているときには√a-bをかける', k_commentary: 'ひなみさんの助言を活かし、未習得だった分母の有理化（特に√a+√bの形の場合に√a-√bを掛ける具体的な方法）を習得できています。ルートの基本的な計算ルールを深く理解しており、知識習得に積極的な姿勢が見られます。' , t_commentary: '有理化のプロセスにおいて、分母の形に応じて掛けるべき項を特定するという具体的な思考プロセスが見られます。自ら納得して理解しようとする積極的な姿勢が素晴らしいです。' },
+            { id: 32, date: '2025/06/10', goal: '内容を理解する', knowledge: 9, thought: 9, k_text: '分母を有利化させるときに分母と同じ√をかけること', t_text: 'どのような√をかけるか考えるとき', k_commentary: '分母を有理化する際の基本的な操作（分母と同じ√を掛けること）を正確に理解できています。' , t_commentary: '有理化の際に「どのような√をかけるか」と考えることで、問題の具体的な状況に応じた判断をしようとする思考の深さが伺えます。' },
+            { id: 34, date: '2025/06/10', goal: 'わからないところは近くの人に聞いて理解する', knowledge: 9, thought: 9, k_text: '符号をしっかり見分ける部分', t_text: '有理化の式に他の数が増えてもしっかり落ち着いて計算する', k_commentary: '計算における基本的な注意点である「符号の見分け」を重要視しており、基礎的な知識の定着が見られます。' , t_commentary: '式の複雑さが増しても「落ち着いて計算する」という、冷静な問題解決への姿勢を意識できている点が素晴らしいです。' },
+            { id: 36, date: '2025/06/10', goal: 'ルートを使った計算法を学ぼう。', knowledge: 10, thought: 9, k_text: '分母の有理化をするとき（ルートが付く場合の足し算の注意など）', t_text: 'ルートの足し算のとき、ルートの中の数字が異なる場合、足し算はできない。\n有理化の際は、分母の根号（ルート√）を分子と分母のどちらにも掛ける。', k_commentary: '分母の有理化におけるルートの足し算の注意点、特にルートの中の数字が異なる場合の扱いを正確に把握できています。' , t_commentary: 'ルート計算の具体的なルール（ルート内の数字が異なる場合の足し算不可、有理化時の分母・分子への根号乗算）を体系的に理解し、自身の思考プロセスに組み込もうとしています。' },
+            { id: 5, date: '2025/06/10', goal: 'ルートの公式を分かるようにする。', knowledge: 10, thought: 10, k_text: 'ルートの足し算は出来ないことを知識では必要。', t_text: '分母がルートの足し算になってるときは、展開の公式四番を、分母、分子にかけること。\n', k_commentary: 'ルートの足し算における基本的な制約（単純な足し算ができないこと）を知識として正確に把握しています。' , t_commentary: '分母がルートの足し算の形をしている場合に、展開の公式（四番）を適用して有理化するという応用的な方法を具体的に考察しています。複雑な問題に対する思考力が光ります。' },
+            { id: 22, date: '2025/06/10', goal: 'ルートを使った式をできるようにする', knowledge: 8, thought: 9, k_text: '中学の時にやったどのように√の式を解くかという考え', t_text: 'ルートとの分数でどのように式を答えていくのかを考えること', k_commentary: '中学校で学習した√の計算方法を思い出し、復習を通じて知識を再定着させています。' , t_commentary: 'ルートを含む分数式の最終的な回答形式について、自ら考察を深めようとする問題解決への意欲が見られます。' },
+            { id: 2, date: '2025/06/10', goal: 'ルートを使った分母の有理化の方法を思い出し、因数分解を活用した有理化の方法を覚えよう', knowledge: 10, thought: 10, k_text: '因数分解の有理化をするときに分子にもその分母にかけたものをかけるときにそのまま計算せずに先に分母の方から計算して約分できたらするという感じでしたら計算しやすくなるというところ。ルートの有理化のときそのまま分母の数をかけるのではなくルート同士で先に計算してからやったほうが楽ということを知りました。', t_text: '分母に√５＋√３という物があったときに前に習った因数分解の４番の（ｘ＋ｙ）（ｘーｙ）＝ｘ²ーｙ²を使って有理化すればいいというところ。', k_commentary: '因数分解を利用した有理化において、計算の効率性を追求する具体的な手順（分母を先に計算・約分すること）を習得しています。ルートの有理化における簡便な方法も理解しており、実用的な知識の習得が見られます。' , t_commentary: '分母に特定のルートの組み合わせがある場合に、以前学習した因数分解の公式(x+y)(x-y)=x²-y²を適用して有理化できるという、具体的な解法を自ら発見し、実践しようとしている点が素晴らしいです。これまでの知識を応用して新たな問題に取り組む意欲的な思考力が見られます。' },
+            { id: 14, date: '2025/06/10', goal: '√を使った計算の仕方(有理化)の復習。有理化を完全に覚える。', knowledge: 10, thought: 10, k_text: '√のある有理化のやり方。答えの約分ができるかどうかの知識(√の中にあるものと外にあるもの)。', t_text: '紗弥ちゃんに例題16の有理化を教えてもらいました。√の消し方だったり、因数分解の4番目のやり方で行うことがわかりました。', k_commentary: '√を含む有理化の具体的な方法と、計算結果の約分の可能性（√の内外の数）についての知識を明確に理解しています。' , t_commentary: '紗弥さんからの学びを通じて、√の解消法や因数分解の公式活用法など、例題16の有理化に対する具体的な理解を深めています。他者からの学びを積極的に自身の思考に組み込めています。' },
+            { id: 16, date: '2025/06/10', goal: 'ルートの使い方をしっかり覚える', knowledge: 9, thought: 9, k_text: 'ルートの足し算は同じ数同士は足すことができるけど、違う数は足すことができないということを学んだ', t_text: 'ひなみちゃんに教えてもらって、分母が足し算になってるときはその式のマイナスの式を使うことがわかった。', k_commentary: 'ルートの足し算の基本的なルール（同じ数同士のみ加算可能）を正確に学習しています。' , t_commentary: 'ひなみさんの助言により、分母が足し算の形の場合に、共役な式（マイナスの式）を掛けることで有理化できるという、実践的な解決策を理解し応用しようとしています。' },
+            { id: 7, date: '2025/06/10', goal: '例題16のような分母に√5＋√3などの式が入ってる問題で分母を有理化できるようにする。', knowledge: 10, thought: 10, k_text: '展開するときの公式であった公式４の（🔴＋✖️）（🔴−✖️）の公式を利用するところ', t_text: '分母を有理化するにはなにをしたら消えるのかよく考えたところ', k_commentary: '例題16のような分母の有理化において、展開の公式(A+B)(A-B)を適切に利用できるという応用的な知識を習得しています。' , t_commentary: '分母を有理化する際に「何をしたら消えるのか」と自ら深く考えることで、問題の本質に迫ろうとする論理的な思考力が伺えます。' },
+            { id: 24, date: '2025/06/10', goal: 'ルートの計算が苦手なのでしっかりと理解することを目標にした。', knowledge: 10, thought: 10, k_text: '分母と分子にルートをかけることで有理化ができるようになった。またルートを外しても外の数字を掛けることを忘れないようにしたい。', t_text: '例題16の問題でこじまりくたくんに教えてもらい、展開の公式が使われていた。', k_commentary: '分母と分子に√を掛ける基本的な有理化の方法を習得し、√を外した後の外部の数との乗算といった具体的な注意点も理解しています。' , t_commentary: 'こじまりくたさんとの協働を通じて、例題16に展開の公式が応用されていることを理解し、他者との学び合いから理解を深めています。' },
+            { id: 27, date: '2025/06/10', goal: '解き方や答えを教科書で見る前に自分なりに解く', knowledge: 10, thought: 10, k_text: '分母に無理数があると計算しにくくなるため、有理化することで式をすっきりさせたり、あとの計算が楽になることがわかり理解が深まった。', t_text: '追加問題でもっと簡単に答えを出すやり方を見つけること', k_commentary: '分母の無理数による計算の煩雑さを認識し、有理化が式を簡潔にし、その後の計算を容易にするという本質的な意義を理解できています。' , t_commentary: '追加問題に対して、より効率的な解法を自力で見つけ出そうとする探求心と問題解決への強い意欲が素晴らしいです。' },
+            { id: 17, date: '2025/06/10', goal: '分母を有理化できるようにする', knowledge: 10, thought: 10, k_text: '前の授業で習った公式を利用し問題を解くことができた。', t_text: '困っている大竹さんと對比地さんに問題を教えたとき', k_commentary: '以前学習した公式を応用して問題を解く能力を身につけており、知識の応用力が伺えます。' , t_commentary: '困っている友人に教えることで、自身の理解をさらに深め、教えるという行為を通じて思考力を高めています。他者貢献と自己成長を両立させている点が素晴らしいです。' },
+            { id: 26, date: '2025/06/03', goal: '素因数分解のやり方や√の計算方法を覚える。', knowledge: 10, thought: 9, k_text: 'ルート計算で素因数分解を利用する場合、根号の中にある数を素因数分解し、2乗の数を見つけてルートの外に出すことを頭で考えて問題に取り組んだ。', t_text: '11分の7は素因数分解ではなく分母と分子同士で、約分できることをわからなかった自分に美紅さんが教えてくれた。', k_commentary: 'ルート計算において素因数分解を活用し、根号内の数を整理して√の外に出すという具体的な手順を理解しています。' , t_commentary: '美紅さんからの助言を受け入れ、自身の誤解（素因数分解と約分の区別）を修正し、理解を深める柔軟な思考力が見られます。' },
+            { id: 16, date: '2025/06/03', goal: '絶対値の求め方を覚える', knowledge: 10, thought: 9, k_text: '絶対値を記号で |a|と表す\n|2|と|-2|はどちらも２となるマイナスはつけない', t_text: '|a|の中に入っているものは先に計算してから値を求めることがわかった。また、|a|＋|b|のときはマイナスが付いていても正の数で表されるので引くことはしない。', k_commentary: '絶対値の表記方法|a|、およびその性質（負の数も正の値となる）を正確に理解しています。' , t_commentary: '絶対値記号内の計算の優先順位と、絶対値の加算において負の数が正として扱われる点を理解し、計算規則を正確に把握しようとする思考が見られます。' },
+            { id: 36, date: '2025/06/03', goal: '中学校でに習っている内容の復習と、新たに習う内容について学んで知識を広げよう', knowledge: 10, thought: 10, k_text: '・絶対値の表し方について（|a|と表すこと）\n・循環小数について（繰り返す数字の最初と最後の数字の上に点「・」をつけること）', t_text: '√の付く場合の数直線上での表し方について（√2=1.41421356,√3=1.732050を語呂で覚えておく）', k_commentary: '絶対値と循環小数の表記方法を正確に理解し、新しい概念を適切に習得しています。' , t_commentary: '√を含む数の数直線上の位置を把握するために、具体的な近似値や語呂合わせを活用するなど、知識の定着に工夫を凝らそうとする思考の深さが伺えます。' },
+            { id: 34, date: '2025/06/03', goal: '平方根の細かい部分を再確認する', knowledge: 9, thought: 9, k_text: '素因数分解した後にまだ計算ができるところがないかどうかを確認すること', t_text: '小さい数字でも素因数分解ができそうなところは計算して確認するといいと思った。', k_commentary: '素因数分解後の計算の見落としがないかを確認する重要性を認識しており、知識の適用における細部への注意が見られます。' , t_commentary: '小さい数字であっても素因数分解の可能性を検討し、計算を丁寧に行うという、網羅的かつ正確な思考プロセスが見られます。' },
+            { id: 28, date: '2025/06/03', goal: 'ルートの復習することができる', knowledge: 9, thought: 8, k_text: '因数分解', t_text: 'ルートの使い方の決まりなどで思考力が深まった。', k_commentary: '因数分解の概念について、しっかりと復習を行っています。既存知識の再確認に努めています。' , t_commentary: 'ルートの計算規則を学ぶ中で、自身の思考が深まったことを認識できており、学習内容への内省が見られます。' },
+            { id: 7, date: '2025/06/03', goal: '中学の復習、実数についてと絶対値を理解すること', knowledge: 10, thought: 10, k_text: '実数aに対応する点と原点（０）からの距離を「aの絶対値」といい、｢ |a| 」と書くことがわかった。|-6+3|など一つの||の中に数字が２個以上並んだら先に||の中を計算して、計算して出た数字の絶対値を出せばいいことがわかった。−がつく数は−を外すことを意識した。また、循環小数は繰り返される数の上に「･」が使われていることがわかった。', t_text: '|√2-5|の絶対値を考えるのが少し難しかった。でも全部−をかければ絶対値を求められることがわかった。', k_commentary: '実数の絶対値の定義、|a|の計算規則（記号内の優先計算）、負の数の絶対値の取り扱い、そして循環小数の表記法など、多岐にわたる重要な知識を正確に習得しています。' , t_commentary: '複雑な絶対値の問題|√2-5|に対し、自力で解決策を模索し、「全部−をかければ絶対値を求められる」という独自の理解に至った点が素晴らしいです。困難な問題に対する粘り強い思考力が光ります。' },
+            { id: 28, date: '2025/06/03', goal: '循環小数について知ること', knowledge: 10, thought: 10, k_text: '循環小数をXとして置き換え，方程式を作るという知識が必要だった。桁の数分をXにかけ，方程式を作る部分で理解を深めることができた。', t_text: '循環小数を分数に変えるのが難しかったが，自分で調べそこからどのようにして理解をするのかという思考力が必要だった。', k_commentary: '循環小数を分数に変換する際の、未知数Xの設定、方程式の構築、桁数に応じた乗算といった一連のプロセスを深く理解できています。' , t_commentary: '循環小数を分数に変換する難しさを認識しつつも、自ら情報を調べ、その情報を基に理解を深めようとする自律的な学習姿勢と高い思考意欲が見られます。' },
+            { id: 22, date: '2025/06/03', goal: '絶対値を使えるようにする', knowledge: 9, thought: 8, k_text: '√や分数などを数直線に書くことができること', t_text: '循環型少数などがわかること', k_commentary: '√や分数といった数値を数直線上に正確に表現する能力を習得しており、数の概念を視覚的に理解できています。' , t_commentary: '循環小数の概念について理解を深めようと努めています。知識習得への積極的な姿勢が伺えます。' },
+            { id: 20, date: '2025/06/03', goal: '絶対値がわかるようになる', knowledge: 9, thought: 9, k_text: '絶対値の表し方がわかったり、求め方が理解できた', t_text: 'あたいの求め方がよく理解出来て、1人で解けるようになった', k_commentary: '絶対値の表記方法と具体的な求め方を正確に理解できています。' , t_commentary: '絶対値の計算方法を深く理解し、自力で問題を解決できるようになった点は素晴らしいです。自己解決能力の向上が見られます。' },
+            { id: 34, date: '2025/06/03', goal: 'わからない問題は班のみんなでわかるようにすること', knowledge: 9, thought: 9, k_text: '絶対値を理解する', t_text: '循環小数を分数で表す方法をしっかり考える部分', k_commentary: '絶対値の基本的な概念を正確に理解することに焦点を当てています。' , t_commentary: '循環小数を分数に変換する複雑な方法に対し、論理的に深く考察しようとする思考が見られます。' },
+            { id: 6, date: '2025/06/03', goal: '絶対値を理解すること。なぜそうなるのかをしっかりと考えること。', knowledge: 10, thought: 9, k_text: '絶対値を|a|で表す。−が付く数などはしっかりと−を外すことを理解する', t_text: '循環小数を分数で表すとこの問題を自分の力で少し考えることができた', k_commentary: '絶対値の表記法|a|と、負の数の絶対値を取る際の注意点を正確に理解しています。' , t_commentary: '循環小数を分数に変換する問題に対し、自力で解決しようと試みる積極性と、思考への意欲が伺えます。' },
+            { id: 2, date: '2025/06/03', goal: '中学校で習った有理数、有限小数、無理数などを復習して理解を深めよう', knowledge: 10, thought: 9, k_text: '絶対値を表すときに|a|と表せたり、|7+2|などの| |のなかに１つ以上の数字があるときに先に計算してから出た数字の絶対値を出せばいいということ。無理数に入るルートを小数にしたものも無理数に入ること。', t_text: '|√2-5|の絶対値を求めるときにその数字ごと一つの数字とし、マイナスになっていると考えとマイナスを掛けると絶対値になること。', k_commentary: '絶対値の表記法と計算規則、および無理数と√の関係性について、広範かつ正確な知識を習得しています。' , t_commentary: '複雑な絶対値の表現|√2-5|に対して、内部の値を一つの数と見なし、符号を考慮して絶対値を求めるという具体的な思考プロセスが見られます。問題解決への深い考察が素晴らしいです。' },
+            { id: 17, date: '2025/06/03', goal: '練習問題を自分で解けるようにする', knowledge: 9, thought: 10, k_text: 'わからなかった問題を先生の話を聞いて解くことができたとき', t_text: '困っている友達に問題の解き方をおしえたとき', k_commentary: '先生の説明を聞き、理解できなかった問題を解決できたことから、他者からの学びを効果的に活かせる能力が見られます。' , t_commentary: '困っている友人に積極的に教えることで、自身の理解を深めるとともに、教えるという行為を通じて思考力を高めています。他者貢献と自己成長を両立させている点が素晴らしいです。' },
+            { id: 5, date: '2025/06/03', goal: '実数について　循環小数の表し方・絶対値', knowledge: 10, thought: 10, k_text: '自然数や整数などの知識と今まで習った、分数を小数にすることで表す有理数などの部分\n理解が深まった部分では、絶対値を|a|と書くところ。　|a|=aが絶対値にするところ。　循環小数では、繰り返される数があり　その上に「・」をつけて表すところ。\n', t_text: '絶対値の計算です。　絶対値の中にマイナスがあった場合、マイナスをかけてなくすためそこの思考力が必要だと思った。数直線では、√があった場合のところが深まった。', k_commentary: '自然数、整数、有理数（分数と小数表現）、絶対値の定義と性質、|a|の計算、|a|=aの原則、そして循環小数の表記法と性質について、非常に包括的かつ深い知識の習得が見られます。' , t_commentary: '絶対値計算における符号の処理（マイナスを掛けて正にする）について、思考の必要性を認識しています。また、√を含む数の数直線上の位置を深く考察し、理解を深めています。' },
+            { id: 27, date: '2025/06/03', goal: '学んだことを活用して始めてみた問題にも積極的に取り組む', knowledge: 10, thought: 10, k_text: '循環小数のしくみの意味が理解できた。また問題によって文字を使った式の立て方が身についた。', t_text: '答えだけでなくなぜそうなったのかを考えることで理解が深まった。', k_commentary: '循環小数のメカニズムと、その問題に応じた文字式の構築方法を理解し、新しい知識を効果的に習得・応用できています。' , t_commentary: '単に正解を導くだけでなく、「なぜそうなるのか」という本質的な理由を深く考察することで、理解を深化させる高い思考力が素晴らしいです。' },
+            { id: 32, date: '2025/06/03', goal: '授業の内容をしっかりと覚える', knowledge: 9, thought: 9, k_text: '小数の繰り返される部分の上に・を書く部分', t_text: 'どこで繰り返されているのかわ見極める部分', k_commentary: '循環小数の具体的な表記方法（繰り返される部分に点をつける）を正確に理解しています。' , t_commentary: '循環小数を正確に認識するために、「どこで繰り返されているのか」を見極めようとする細部への注意と分析的思考が見られます。' },
+            { id: 24, date: '2025/06/03', goal: '新しい単元なので阿部先生が言っていることを理解することを目標にした。', knowledge: 8, thought: 8, k_text: '単語も出てきて覚えないといけない。', t_text: '練習問題で循環小数が出てきて思考力が深まった。', k_commentary: '新しい単元の専門用語を覚えることの重要性を認識しており、知識習得への前向きな意欲が伺えます。' , t_commentary: '具体的な練習問題に取り組む中で、循環小数の概念について思考を深め、理解を促進させています。実践を通じた学習意欲が見られます。' },
+            { id: 2, date: '2025/06/02', goal: '今までの計算方法の応用の因数分解を自分でちゃんと理解して計算できるようにすること', knowledge: 10, thought: 10, k_text: '因数分解する前に一つの文字に着目して文字に置き換えるところ。またその一旦因数分解の形にしてからそれぞれの乗法公式に当てはめてから文字に置き換え、計算する方法をさやちゃんに教えてもらい他の問題も解けることができた。計算する前に一つの文字に着目して計算することでとても計算がしやすくなるということ。自分が使いやすい文字を括りだしてから計算する方法以外にも計算方法があることを知りました。', t_text: '文字式が３つ以上ある因数分解をするときに（◯ｙ＋２）ｘや（ｙー４）（ｙー６）などを一つの文字式と考えることと、その考えを持ってたすきかけをして計算するという今までの計算方法を利用するところ。一つの文字式に置き換えてたすきかけをすることが分からなく、さやちゃんに教えてもらい何となく方法を知ることができたこと。', k_commentary: '複雑な因数分解において、文字に着目し置き換える手法、一度因数分解の形にしてから乗法公式を適用する方法など、効率的な計算手順を複数習得しています。さやさんからの学びを活かし、多様な解法を柔軟に使いこなす知識が見られます。' , t_commentary: '3つ以上の文字を含む因数分解において、複雑な項を一つの文字式と見なしてたすき掛けを適用するという、高度な応用思考が見られます。さやさんとの協働を通じて、この抽象的な思考プロセスを理解し、問題解決に繋げています。' },
+            { id: 28, date: '2025/06/02', goal: 'グループで協力してやり方，解き方を理解することを目標にしました。', knowledge: 10, thought: 10, k_text: '知識が深まった部分は，因数分解やたすけがけ，くくる部分などに着目して計算することができた。また，グループでできる人とできない人で分かれるためお互いに知識を深められ，わからなかったところを理解して解くことができた。', t_text: '相手にわかりやすく教えるためにはどのように伝えれば良いのかという場面で思考力が必要でまた高っまたと思います。', k_commentary: '因数分解、たすき掛け、項の括り出しといった計算技術を深め、グループ学習を通じて互いに学び合い、未理解だった点を克服できている点が素晴らしいです。協働的な学習態度が見られます。' , t_commentary: '他者に「わかりやすく教える」という場面で、自身の思考力が高まったことを認識しており、教育的視点からの深い学びが見られます。' },
+            { id: 10, date: '2025/06/02', goal: '自分で問題を解けるようにする。', knowledge: 9, thought: 9, k_text: 'たすき掛けのやり方がいまいちわからなかったけど、わかるようになった。', t_text: 'たすき掛けをできるように式の形を変形する。', k_commentary: '苦手意識があったたすき掛けの計算方法を理解し、克服できています。' , t_commentary: 'たすき掛けを適用するために、自ら式の形を適切に変形するという、問題解決に向けた具体的な思考プロセスが見られます。' },
+            { id: 17, date: '2025/06/02', goal: '授業の内容を理解し、練習問題を自分ひとりで解くことのできるようにする', knowledge: 10, thought: 10, k_text: '難しい因数分解をたすき掛けを使って解いた', t_text: '新しい問題を自分一人で解いたとき', k_commentary: '複雑な因数分解の問題に対し、たすき掛けを適切に適用し、解決する能力を身につけています。' , t_commentary: '新たな問題に対し、自力で解決しようと試みる自律的な学習姿勢が素晴らしいです。また、友人を助けることで、自身の理解を再確認し、思考を深めています。' },
+            { id: 5, date: '2025/06/02', goal: '公式を覚える！　なるべく自分がわかりやすいように、簡単に！', knowledge: 10, thought: 10, k_text: '文字が多い場合、Aとして置く公式\n二条の式の応用のときは｛｝で一つの二乗として置く公式', t_text: '人に教えるときに、今まで習った公式をフル活用したこと　例えば、たすきがけと因数分解をしないと答えられない式。降べきの順にそろえて因数分解やたすきがけなど工夫しないといけない式。', k_commentary: '文字が多い式や二乗の応用形において、置換文字（A）や括弧（{}）を用いることで式を簡略化する公式を多様に使いこなす知識が見られます。' , t_commentary: '他者に教える過程で、たすき掛け、因数分解、降べきの順に整理するなど、状況に応じて複数の公式や工夫を凝らした解法を柔軟に適用できるという、高い指導力と応用的な思考が見られます。' },
+            { id: 26, date: '2025/06/02', goal: 'プラスマイナスをつけ間違えないようにし、因数分解が最後まで解けるようにすること。', knowledge: 8, thought: 8, k_text: 'たすき掛けの順番を間違えないようにする。', t_text: '因数分解の整理で自分で考えて答えを出したこと。', k_commentary: 'たすき掛けの計算において、手順の正確性を意識しており、計算ミスの防止への注意が見られます。' , t_commentary: '因数分解の整理において、自力で思考し、正解を導き出したことから、問題解決能力が向上していることが伺えます。' },
+            { id: 33, date: '2025/06/02', goal: '問題が解けるように友達に聞いたり自分が考えたりする', knowledge: 8, thought: 9, k_text: '因数分解の長い問題が難しく解けなかったので友達に聞いたりする。\nたすきがけをちゃんとやる\n', t_text: '長い問題の因数分解ではたすきがけをして問題を解く', k_commentary: '複雑な因数分解の問題に直面し、友人に積極的に尋ねることで学びを深めようとしています。たすき掛けの正確な実行も意識しています。' , t_commentary: '長い因数分解の問題に対して、たすき掛けを適用するという具体的なアプローチを理解し、実践しようとしています。' },
+            { id: 20, date: '2025/06/02', goal: '因数分解が解けるようになる', knowledge: 9, thought: 9, k_text: '因数分解の解き方を理解して、1人で解けたこと', t_text: 'たすき掛けを使ってうまく計算すること', k_commentary: '因数分解の解法を理解し、自力で問題を解決できるようになったことから、基礎知識の定着と自己解決能力の向上が見られます。' , t_commentary: 'たすき掛けを効率的に活用し、計算を円滑に進めようとする実践的な思考が見られます。' },
+            { id: 27, date: '2025/06/02', goal: '最初に自分で考えて理解すること', knowledge: 9, thought: 9, k_text: 'たすきがけしたときの答えの書き方が同じで前の授業を振り返る', t_text: '問題が多少ちがくても別の考え方を持って解こうとする', k_commentary: 'たすき掛けの答えの形式を既存の知識と関連付け、以前の授業内容を振り返ることで、知識の統合を図っています。' , t_commentary: '問題形式が異なっても、一つの解法に固執せず、複数のアプローチを検討しようとする柔軟で多角的な思考力が素晴らしいです。' },
+            { id: 7, date: '2025/06/02', goal: 'みんなと協力して、お互いできないところを教え合うことができた', knowledge: 10, thought: 10, k_text: '例題14みたいな少し複雑な長い式から因数分解して、たすきがけなどを使って問題を解くこと', t_text: 'たくさんの計算方法を考え、その問題にあった計算方法を使用すること', k_commentary: '例題14のような複雑な式の因数分解において、たすき掛けなどの複数の手法を組み合わせて問題を解決する能力を習得しています。' , t_commentary: '多様な計算方法の中から、その問題に最適な方法を選択しようとする思考が見られます。問題解決への深い洞察力が伺えます。' },
+            { id: 6, date: '2025/06/02', goal: 'たすき掛けを使って式を整理し、答えにつなぐ。', knowledge: 9, thought: 9, k_text: '式をAなどに置き換え、整理すること。また、たすき掛けを使って答えを出すこと。', t_text: 'たすき掛けを使う場面、因数分解をする場面を見極めること。', k_commentary: '式を仮の文字（Aなど）に置き換えて整理する方法や、たすき掛けを用いて解答を導き出す具体的な計算手順を把握しています。' , t_commentary: 'たすき掛けや因数分解といった手法を、問題の状況に応じて適切に「見極める」という、高い判断力と応用的な思考力が伺えます。' },
+            { id: 36, date: '2025/06/02', goal: 'いろいろな因数分解を学ぼう', knowledge: 9, thought: 9, k_text: 'たすきがけの応用が出てきたので、はじめは難しいと思いましたが、問題を解くうちに解き方を理解することができた。', t_text: '答えにたどり着くまでの式を考えるとき', k_commentary: 'たすき掛けの応用問題に対し、最初は難しさを感じつつも、演習を通じて解き方を理解できたことから、新しい知識への適応力と粘り強さが見られます。' , t_commentary: '単に答えを出すだけでなく、そこに至るまでの思考プロセス（式の展開）を意識している点が素晴らしいです。過程を重視する深い思考が伺えます。' },
+            { id: 32, date: '2025/06/02', goal: '他の人に教えられること', knowledge: 9, thought: 10, k_text: 'たすき掛けをする部分', t_text: '他の人に教える場面', k_commentary: 'たすき掛けの計算方法を理解し、その基本的な手順を習得しています。' , t_commentary: '他者に教える経験を通じて、自身の理解を深め、より論理的に思考する機会を得ています。教育的視点からの学びが素晴らしいです。' },
+            { id: 24, date: '2025/06/02', goal: '今まで勉強した公式を使うことを目標にした。', knowledge: 8, thought: 9, k_text: 'マイナスのつけ忘れやケアレスミスが多かった。', t_text: '因数分解の問題でたすきがけラージAを使うことを意識する。', k_commentary: '計算におけるマイナスの符号忘れやケアレスミスが多いという自己分析ができており、自身の弱点を正確に把握しています。' , t_commentary: '因数分解において、たすき掛けやラージAを用いた置換など、具体的な問題解決のアプローチを意識できている点が素晴らしいです。' },
+            { id: 16, date: '2025/06/02', goal: 'たすき掛けをしっかり使えるようにする', knowledge: 9, thought: 9, k_text: '因数分解をしてからたすき掛けをするところ', t_text: '文字や数に着目して解くことが大切だと思った。また、足し間違えなどに気をつける。', k_commentary: '因数分解とたすき掛けの計算順序を正確に把握しています。' , t_commentary: '文字や数といった要素に注目し、計算ミスを防ぐための具体的な注意点（足し間違い）を意識できている点が、丁寧な思考プロセスを示しています。' },
+            { id: 22, date: '2025/06/02', goal: '因数分解をできるようにする', knowledge: 9, thought: 9, k_text: 'たすき掛けをするために何をするべきなのかや因数分解をするための準備の仕方', t_text: '新しいたすき掛けをするためにどうやってやるのかを考える', k_commentary: 'たすき掛けや因数分解を行う上での準備段階（何をすべきか）を理解しており、計算前の段取りを正確に把握しています。' , t_commentary: '新たなたすき掛けの形式に直面し、その解法を自ら考察しようとする実践的な思考力が見られます。' },
+            { id: 34, date: '2025/06/02', goal: '因数分解する部分とたすき掛けする部分を見分けて計算していくこと', knowledge: 9, thought: 9, k_text: '１つの文字に着目する計算を忘れないようにする部分', t_text: '式の計算方法を一つだけで考えるんじゃなく、別の計算方法を考えることを意識する', k_commentary: '計算の正確性を保つために、「一つの文字に着目する」という重要なステップを意識できています。' , t_commentary: '式の計算において、単一の解法に固執せず、複数の異なるアプローチを検討しようとする柔軟な思考力が素晴らしいです。' }
+        ];
+
+        // Chart.jsのインスタンスを保持するためのオブジェクト
+        let charts = {};
+        let studentChartInstance = null; // 生徒別レポートの棒グラフインスタンス
+
+        /**
+         * 各日付の高校数学Ⅰの学習内容の要約
+         * キーをYYYY/MM/DD 形式に統一
+         */
+        const learningSummaries = {
+            '2025/06/02': 'この日は、高校数学Ⅰにおける因数分解、たすき掛け、そして複数の文字を含む式の整理方法について学びました。複雑な式を単純化し、効率的に解くための基礎を固めることに焦点を当てました。',
+            '2025/06/03': 'この日は、高校数学Ⅰの実数、絶対値、循環小数、無理数といった概念に焦点を当てました。数直線上での数の表現や、循環小数を分数に変換する方法などを学び、数の性質に関する理解を深めました。',
+            '2025/06/10': 'この日は、高校数学Ⅰの分母の有理化、特に√a+√bの形の有理化や、ルートの計算ルール、そして因数分解の応用について学習しました。計算をより簡潔に行うための技術を習得し、応用力を高めました。'
+        };
+
+
+        /**
+         * Chart.jsのインスタンスを破棄するヘルパー関数
+         * @param {string} chartId - 破棄するキャンバス要素のID
+         */
+        function destroyChart(chartId) {
+            if (charts[chartId]) {
+                charts[chartId].destroy();
+                delete charts[chartId];
+            }
+        }
+
+        /**
+         * チャートで使用する色を定義
+         * @returns {string[]} 色の配列 (知識：青系統、思考：緑系統)
+         */
+        function getChartColors(type) {
+            if (type === 'knowledge') {
+                return ['#3B82F6', '#60A5FA', '#93C5FD', '#BFDBFE', '#DBEAFE']; // Blue shades
+            } else if (type === 'thought') {
+                return ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0', '#D1FAE5']; // Green shades
+            }
+            return [
+                '#3B82F6', '#60A5FA', '#93C5FD', '#BFDBFE', '#DBEAFE', // Blue
+                '#10B981', '#34D399', '#6EE7B7', '#A7F3D0', '#D1FAE5', // Green
+                '#F59E0B', '#FCD34D', '#FDE68A', '#FEF3C7', '#FFFBEB'  // Amber
+            ];
+        }
+
+        /**
+         * テキストからMarkdownの太字（**）とLaTeXの記法（$、\sqrt{}）を削除するヘルパー関数
+         * @param {string} text - 処理するテキスト
+         * @returns {string} 処理後のテキスト
+         */
+        function removeMarkdownAndLatexSyntax(text) {
+            if (!text) return '';
+            let cleanedText = text.replace(/\*\*/g, ''); // 太字マークダウンを削除
+            cleanedText = cleanedText.replace(/\\sqrt\{([^\}]+)\}/g, '√$1'); // \sqrt{}を√に置換
+            cleanedText = cleanedText.replace(/\$/g, ''); // $を削除
+            return cleanedText;
+        }
+
+        /**
+         * 先生のコメントを整形するヘルパー関数
+         * コメント内のMarkdownやLaTeX記法を削除します。
+         * @param {string} text - 処理するテキスト
+         * @returns {string} 整形後のテキスト
+         */
+        function formatTeacherComment(text) {
+            if (!text) return '';
+            let formattedText = text.replace(/\\sqrt\{([^\}]+)\}/g, '√$1'); // \sqrt{}を√に置換
+            formattedText = formattedText.replace(/\$/g, ''); // $を削除
+            formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '$1'); // 太字マークダウンを削除
+            return formattedText;
+        }
+
+        /**
+         * 生徒の振り返りテキストの長さに基づいて評価点を減点する関数
+         */
+        function applyScoreDeductions() {
+            studentData.forEach(item => {
+                // 知識の振り返りテキストをチェック
+                const k_text_trimmed = item.k_text ? item.k_text.trim() : '';
+                const k_word_count = k_text_trimmed.split(/\s+/).filter(word => word !== '').length;
+                
+                // 10文字未満または単一の単語の場合に減点
+                if (k_word_count <= 1 || k_text_trimmed.length < 10) {
+                    item.knowledge = Math.max(0, item.knowledge - 1); // 2点から1点に減点変更
+                    console.log(`生徒 ${item.id} (${item.date}): 知識の振り返りが短いため、知識評価を1点減点しました。新評価: ${item.knowledge}`);
+                }
+
+                // 思考の振り返りテキストをチェック
+                const t_text_trimmed = item.t_text ? item.t_text.trim() : '';
+                const t_word_count = t_text_trimmed.split(/\s+/).filter(word => word !== '').length;
+                
+                // 10文字未満または単一の単語の場合に減点
+                if (t_word_count <= 1 || t_text_trimmed.length < 10) {
+                    item.thought = Math.max(0, item.thought - 1); // 2点から1点に減点変更
+                    console.log(`生徒 ${item.id} (${item.date}): 思考の振り返りが短いため、思考評価を1点減点しました。新評価: ${item.thought}`);
+                }
+            });
+        }
+
+
+        /**
+         * メインビューを切り替える関数
+         * @param {string} viewName - 表示するビューの名前 ('byStudent' or 'dateRatio')
+         */
+        function showView(viewName) {
+            document.getElementById('byStudent-view').classList.add('hidden');
+            document.getElementById('dateRatio-view').classList.add('hidden');
+
+            document.getElementById('nav-byStudent').classList.remove('active');
+            document.getElementById('nav-dateRatio').classList.remove('active');
+
+            document.getElementById(`${viewName}-view`).classList.remove('hidden');
+            document.getElementById(`nav-${viewName}`).classList.add('active');
+
+            // ビュー切り替え時にチャートを初期化または再描画
+            if (viewName === 'byStudent') {
+                const studentSelector = document.getElementById('student-selector');
+                // ドロップダウンが変更されたときにレポートを表示
+                if (studentSelector.value) {
+                    showStudentReport(parseInt(studentSelector.value));
+                } else {
+                    // 何も選択されていない場合はレポートを非表示にし、チャートを破棄
+                    document.getElementById('student-report-card').classList.add('hidden');
+                    destroyChart('studentChart');
+                    document.getElementById('student-reflections').innerHTML = '';
+                }
+            } else if (viewName === 'dateRatio') {
+                // dateRatioビューが初めて表示されたときに、デフォルトのタブをアクティブにしてチャートを描画
+                const defaultDateTabId = '20250602'; // data-date-idの値に合わせる
+                
+                // すべての日付コンテンツを非表示にし、デフォルトの日付コンテンツのみ表示
+                document.querySelectorAll('.date-ratio-content').forEach(content => content.classList.add('hidden'));
+                const defaultContentDiv = document.getElementById(`date-ratio-${defaultDateTabId}`);
+                if (defaultContentDiv) {
+                    defaultContentDiv.classList.remove('hidden');
+                }
+
+                // すべての日付タブのactiveクラスを削除し、デフォルトのタブのみアクティブに
+                document.querySelectorAll('.date-tab').forEach(tab => tab.classList.remove('active'));
+                const defaultTabButton = document.querySelector(`.date-tab[data-date-id="${defaultDateTabId}"]`); // data-date-idを使用
+                if (defaultTabButton) {
+                    defaultTabButton.classList.add('active');
+                }
+
+                // デフォルト日付のチャートをレンダリング
+                renderDateRatioCharts(defaultDateTabId);
+            }
+        }
+
+        /**
+         * 生徒選択ドロップダウンにオプションを投入する関数
+         */
+        function populateStudentSelector() {
+            const studentSelector = document.getElementById('student-selector');
+            const uniqueStudentIds = [...new Set(studentData.map(item => item.id))].sort((a, b) => a - b);
+
+            uniqueStudentIds.forEach(id => {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = `${id}`; // 数字のみ表示
+                studentSelector.appendChild(option);
+            });
+
+            // ドロップダウンの変更イベントリスナー
+            studentSelector.addEventListener('change', (event) => {
+                const selectedStudentId = parseInt(event.target.value);
+                showStudentReport(selectedStudentId);
+            });
+        }
+
+        /**
+         * 特定の生徒のレポートを表示する関数
+         * @param {number} studentId - 表示する生徒のID
+         */
+        function showStudentReport(studentId) {
+            const studentReportCard = document.getElementById('student-report-card');
+            const studentReflectionsDiv = document.getElementById('student-reflections');
+            const studentChartCanvas = document.getElementById('studentChart');
+
+            if (isNaN(studentId)) {
+                // 生徒が選択されていない場合
+                studentReportCard.classList.add('hidden');
+                destroyChart('studentChart'); // 既存のチャートを破棄
+                studentReflectionsDiv.innerHTML = '';
+                return;
+            }
+
+            studentReportCard.classList.remove('hidden');
+
+            const filteredData = studentData
+                .filter(item => item.id === studentId)
+                .sort((a, b) => new Date(a.date) - new Date(b.date)); // 日付でソート
+
+            const dates = filteredData.map(item => item.date);
+            const knowledgeScores = filteredData.map(item => item.knowledge);
+            const thoughtScores = filteredData.map(item => item.thought);
+
+            // 既存のチャートがあれば破棄
+            destroyChart('studentChart');
+
+            // 新しい棒グラフを作成
+            studentChartInstance = new Chart(studentChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: dates,
+                    datasets: [
+                        {
+                            label: '知識の習得',
+                            data: knowledgeScores,
+                            backgroundColor: '#3B82F6', // Blue
+                            borderColor: '#3B82F6',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '思考力の深化',
+                            data: thoughtScores,
+                            backgroundColor: '#10B981', // Green
+                            borderColor: '#10B981',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `出席番号 ${studentId} 番の学習進捗`,
+                            font: {
+                                size: 18,
+                                family: 'Noto Sans JP'
+                            },
+                            color: '#1F2937' // slate-800
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    return `${context[0].label} の振り返り`;
+                                },
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    return label + context.raw + '点';
+                                },
+                                // 先生のコメントは表示しない
+                                afterBody: function(context) {
+                                    const dataIndex = context[0].dataIndex;
+                                    const reflection = filteredData[dataIndex];
+                                    let reflectionsText = [];
+                                    if (reflection) {
+                                        if (reflection.goal) reflectionsText.push(`目標: ${reflection.goal}`);
+                                        // 生徒の振り返りを太字で表示
+                                        if (reflection.k_text) reflectionsText.push(`知識の振り返り: ${removeMarkdownAndLatexSyntax(reflection.k_text)}`);
+                                        if (reflection.t_text) reflectionsText.push(`思考の振り返り: ${removeMarkdownAndLatexSyntax(reflection.t_text)}`);
+                                    }
+                                    return reflectionsText;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 10,
+                            title: {
+                                display: true,
+                                text: '評価点',
+                                font: {
+                                    family: 'Noto Sans JP'
+                                },
+                                color: '#4B5563' // slate-600
+                            },
+                            ticks: {
+                                stepSize: 1
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '日付',
+                                font: {
+                                    family: 'Noto Sans JP'
+                                },
+                                color: '#4B5563'
+                            }
+                        }
+                    }
+                }
+            });
+            charts['studentChart'] = studentChartInstance; // グローバル管理に追加
+
+            // 生徒の振り返り内容を表示
+            studentReflectionsDiv.innerHTML = '<h3 class="text-xl font-bold text-blue-700 mb-4">この生徒の学習の軌跡と振り返り</h3>';
+            if (filteredData.length > 0) {
+                filteredData.forEach(reflection => {
+                    const reflectionElement = document.createElement('div');
+                    reflectionElement.className = 'bg-slate-50 p-4 rounded-lg shadow-sm border border-slate-200';
+                    reflectionElement.innerHTML = `
+                        <p class="text-sm text-slate-500 mb-1">日付: ${reflection.date}</p>
+                        <h4 class="text-lg font-semibold text-slate-800 mb-2">目標: ${reflection.goal}</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="font-medium text-slate-700">知識の習得: <span class="font-bold text-blue-600">${reflection.knowledge}点</span></p>
+                                <p class="text-slate-600 text-sm mt-1 font-bold">生徒の振り返り: ${removeMarkdownAndLatexSyntax(reflection.k_text)}</p>
+                                <p class="text-sm mt-2 p-2 rounded bg-blue-100 text-blue-800">先生のコメント (知識): ${formatTeacherComment(reflection.k_commentary)}</p>
+                            </div>
+                            <div>
+                                <p class="font-medium text-slate-700">思考力の深化: <span class="font-bold text-emerald-600">${reflection.thought}点</span></p>
+                                <p class="text-slate-600 text-sm mt-1 font-bold">生徒の振り返り: ${removeMarkdownAndLatexSyntax(reflection.t_text)}</p>
+                                <p class="text-sm mt-2 p-2 rounded bg-emerald-100 text-emerald-800">先生のコメント (思考): ${formatTeacherComment(reflection.t_commentary)}</p>
+                            </div>
+                        </div>
+                    `;
+                    studentReflectionsDiv.appendChild(reflectionElement);
+                });
+            } else {
+                studentReflectionsDiv.innerHTML += '<p class="text-slate-600">この生徒のデータはありません。</p>';
+            }
+        }
+
+        /**
+         * 日付ごとの割合分析タブを切り替える関数
+         * @param {string} dateString - 表示する日付の文字列 (例: '20250602')
+         */
+        function showDateRatioTab(dateString) {
+            const dateContents = document.querySelectorAll('.date-ratio-content');
+            dateContents.forEach(content => content.classList.add('hidden'));
+
+            const dateTabs = document.querySelectorAll('.date-tab');
+            dateTabs.forEach(tab => tab.classList.remove('active'));
+
+            // アクティブにするコンテンツとタブ
+            const targetContentId = `date-ratio-${dateString}`;
+            const targetContentDiv = document.getElementById(targetContentId);
+            if (targetContentDiv) {
+                targetContentDiv.classList.remove('hidden');
+            } else {
+                console.error(`Target content div with ID ${targetContentId} not found.`);
+                return;
+            }
+
+            const targetTabButton = document.querySelector(`.date-tab[data-date-id="${dateString}"]`);
+            if (targetTabButton) {
+                targetTabButton.classList.add('active');
+            } else {
+                console.error(`Target tab button with data-date-id="${dateString}" not found.`);
+                return;
+            }
+
+            renderDateRatioCharts(dateString);
+        }
+
+        /**
+         * 特定の日付の円グラフと振り返りを描画する関数
+         * @param {string} dateString - 日付 (例: '20250602')
+         */
+        function renderDateRatioCharts(dateString) {
+            // requestAnimationFrameを使用して、DOMが完全に更新された後にチャートを描画する
+            requestAnimationFrame(() => {
+                const dateFormatted = dateString.replace(/(\d{4})(\d{2})(\d{2})/, '$1/$2/$3'); // YYYY/MM/DD 形式に変換
+                const filteredData = studentData.filter(item => item.date === dateFormatted);
+
+                const scoreLabels = ['7点', '8点', '9点', '10点']; // 想定される点数
+
+                // 知識の習得のスコア分布を計算
+                const knowledgeDistribution = calculateScoreDistribution(filteredData, 'knowledge', scoreLabels);
+                // 思考の深化のスコア分布を計算
+                const thoughtDistribution = calculateScoreDistribution(filteredData, 'thought', scoreLabels);
+
+                // 既存のチャートを破棄
+                destroyChart(`ratioChart-Knowledge-${dateString}`);
+                destroyChart(`ratioChart-Thought-${dateString}`);
+
+                // 知識の習得チャートを描画
+                const canvasKnowledge = document.getElementById(`ratioChart-Knowledge-${dateString}`);
+                if (canvasKnowledge) {
+                    const ctxKnowledge = canvasKnowledge.getContext('2d');
+                    charts[`ratioChart-Knowledge-${dateString}`] = new Chart(ctxKnowledge, {
+                        type: 'pie',
+                        data: {
+                            labels: knowledgeDistribution.labels,
+                            datasets: [{
+                                data: knowledgeDistribution.data,
+                                backgroundColor: getChartColors('knowledge'), // 知識は青系統
+                                borderColor: '#ffffff',
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right',
+                                    labels: {
+                                        font: {
+                                            family: 'Noto Sans JP'
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            let label = context.label || '';
+                                            if (label) {
+                                                label += ': ';
+                                            }
+                                            const percentage = (context.raw / knowledgeDistribution.total * 100).toFixed(1);
+                                            return `${label}${percentage}% (${context.raw}人)`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    console.error(`Canvas element with ID ratioChart-Knowledge-${dateString} not found.`);
+                }
+
+
+                // 思考の深化チャートを描画
+                const canvasThought = document.getElementById(`ratioChart-Thought-${dateString}`);
+                if (canvasThought) {
+                    const ctxThought = canvasThought.getContext('2d');
+                    charts[`ratioChart-Thought-${dateString}`] = new Chart(ctxThought, {
+                        type: 'pie',
+                        data: {
+                            labels: thoughtDistribution.labels,
+                            datasets: [{
+                                data: thoughtDistribution.data,
+                                backgroundColor: getChartColors('thought'), // 思考は緑系統
+                                borderColor: '#ffffff',
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right',
+                                    labels: {
+                                        font: {
+                                            family: 'Noto Sans JP'
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            let label = context.label || '';
+                                            if (label) {
+                                                label += ': ';
+                                            }
+                                            const percentage = (context.raw / thoughtDistribution.total * 100).toFixed(1);
+                                            return `${label}${percentage}% (${context.raw}人)`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    console.error(`Canvas element with ID ratioChart-Thought-${dateString} not found.`);
+                }
+
+                // サマリーテキストを生成
+                const summaryElement = document.getElementById(`summary-${dateString}`);
+                if (summaryElement) { // nullチェックを追加
+                    if (filteredData.length > 0) {
+                        const avgKnowledge = (filteredData.reduce((sum, item) => sum + item.knowledge, 0) / filteredData.length).toFixed(1);
+                        const avgThought = (filteredData.reduce((sum, item) => sum + item.thought, 0) / filteredData.length).toFixed(1);
+                        summaryElement.innerHTML = `
+                            <p>この日の生徒総数: <span class="font-bold text-blue-600">${filteredData.length}名</span></p>
+                            <p>平均点: 知識の習得 <span class="font-bold text-blue-600">${avgKnowledge}点</span>、思考力の深化 <span class="font-bold text-emerald-600">${avgThought}点</span></p>
+                        `;
+                    } else {
+                        summaryElement.textContent = 'この日のデータはありません。';
+                    }
+                } else {
+                     console.error(`Summary element with ID summary-${dateString} not found.`);
+                }
+
+
+                // 学習内容の要約を表示
+                const learningSummaryElement = document.getElementById(`learning-summary-${dateString}`);
+                if (learningSummaryElement) {
+                    learningSummaryElement.textContent = learningSummaries[dateFormatted] || 'この日の学習内容の要約はありません。'; // YYYY/MM/DD 形式のキーを使用
+                } else {
+                     console.error(`Learning summary element with ID learning-summary-${dateString} not found.`);
+                }
+
+                // 生徒の感想を表示 (高評価のものを最大5つ)
+                const studentReflectionsForDateDiv = document.getElementById(`student-reflections-for-date-${dateString}`);
+                if (studentReflectionsForDateDiv) { // nullチェックを追加
+                    studentReflectionsForDateDiv.innerHTML = ''; // 既存の内容をクリア
+                    const highRatedReflections = filteredData
+                        .filter(item => item.knowledge >= 9 && item.thought >= 9) // 知識と思考力が両方9点以上
+                        .slice(0, 5); // 最大5つに制限
+
+                    if (highRatedReflections.length > 0) {
+                        highRatedReflections.forEach(reflection => {
+                            const reflectionElement = document.createElement('div');
+                            reflectionElement.className = 'bg-white p-3 rounded-lg shadow-sm border border-slate-200';
+                            // 生徒の振り返り (知識と思考の両方) を指定された順序で表示
+                            reflectionElement.innerHTML = `
+                                <p class="text-sm text-slate-500 mb-1">日付: ${reflection.date}</p>
+                                <h5 class="text-md font-semibold text-slate-800 mb-1">目標: ${reflection.goal}</h5>
+                                <p class="text-slate-600 text-sm">知識の習得: <span class="font-bold text-blue-600">${reflection.knowledge}点</span> / 思考力の深化: <span class="font-bold text-emerald-600">${reflection.thought}点</span></p>
+                                <p class="text-slate-700 text-sm mt-2 font-bold">生徒の振り返り (知識): ${removeMarkdownAndLatexSyntax(reflection.k_text)}</p>
+                                <p class="text-sm mt-1 p-2 rounded bg-blue-100 text-blue-800">先生のコメント (知識): ${formatTeacherComment(reflection.k_commentary)}</p>
+                                <p class="text-slate-700 text-sm mt-2 font-bold">生徒の振り返り (思考): ${removeMarkdownAndLatexSyntax(reflection.t_text)}</p>
+                                <p class="text-sm mt-1 p-2 rounded bg-emerald-100 text-emerald-800">先生のコメント (思考): ${formatTeacherComment(reflection.t_commentary)}</p>
+                            `;
+                            studentReflectionsForDateDiv.appendChild(reflectionElement);
+                        });
+                    } else {
+                        studentReflectionsForDateDiv.innerHTML += '<p class="text-slate-600">この日の高評価の感想はありません。</p>';
+                    }
+                } else {
+                    console.error(`Student reflections container with ID student-reflections-for-date-${dateString} not found.`);
+                }
+            }); // End of requestAnimationFrame
+        }
+
+        /**
+         * スコアの分布を計算するヘルパー関数
+         * @param {Array} data - 生徒データの配列
+         * @param {string} scoreType - 'knowledge' または 'thought'
+         * @param {string[]} labels - スコアのラベル配列
+         * @returns {object} 分布データ {labels, data, colors, total}
+         */
+        function calculateScoreDistribution(data, scoreType, labels) {
+            const distribution = {};
+            labels.forEach(label => distribution[label] = 0); // 初期化
+
+            data.forEach(item => {
+                const score = item[scoreType];
+                if (score >= 7 && score <= 10) { // 7点から10点のみを考慮
+                    distribution[`${score}点`] = (distribution[`${score}点`] || 0) + 1;
+                }
+            });
+
+            // 0カウントのスコアを除外してソート
+            const filteredEntries = Object.entries(distribution)
+                .filter(([, count]) => count > 0) // ここで0カウントのものを除外
+                .map(([label, count]) => ({ label, count, score: parseInt(label.replace('点', '')) }))
+                .sort((a, b) => b.score - a.score); // スコアの高い順にソート
+
+            const sortedLabels = filteredEntries.map(entry => entry.label);
+            const sortedCounts = filteredEntries.map(entry => entry.count);
+
+            const total = sortedCounts.reduce((sum, count) => sum + count, 0);
+            const assignedColors = getChartColors(scoreType); // グラフの種類に応じて色を取得
+
+            return {
+                labels: sortedLabels,
+                data: sortedCounts,
+                colors: assignedColors.slice(0, sortedLabels.length), // 必要な数だけ色を割り当て
+                total: total
+            };
+        }
+
+        // DOMContentLoadedイベントリスナー
+        document.addEventListener('DOMContentLoaded', () => {
+            // 評価点減点ロジックを適用
+            applyScoreDeductions();
+
+            // ナビゲーションボタンにイベントリスナーを追加
+            document.getElementById('nav-byStudent').addEventListener('click', () => showView('byStudent'));
+            document.getElementById('nav-dateRatio').addEventListener('click', () => showView('dateRatio'));
+
+            // 日付タブボタンにイベントリスナーを追加
+            document.querySelectorAll('.date-tab').forEach(button => {
+                button.addEventListener('click', () => {
+                    showDateRatioTab(button.dataset.dateId);
+                });
+            });
+
+            populateStudentSelector();
+            showView('byStudent'); // デフォルトで生徒別レポートを表示
+        });
+    </script>
+</body>
+</html>
