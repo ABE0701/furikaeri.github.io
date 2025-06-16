@@ -199,7 +199,7 @@
 知識・技能: 9点
 授業で思考力が必要だった場面・思考力が深まった部分: たくさんの計算方法を考え、その問題にあった計算方法を使用すること。
 思考・判断: 7点
-先生からのコメント: グループ学習で協力し、複雑な因数分解問題に取り組んだ経験は貴重ですね。多様な計算方法の中から最適なものを選ぶ思考力は、今後の学習において非常に役立つでしょう。協力し合う姿勢も素晴らしいです。
+先生からのコメント: グループ学習で協力し、複雑な因数分解問題に取り組んだ経験は貴重ですね。多様な計算方法の中から最適なものを選ぶ思考力は、今後の学習において非常に役に立つでしょう。協力し合う姿勢も素晴らしいです。
 2025年06月03日
 今回の授業の目標: 中学の復習、実数についてと絶対値を理解すること
 授業で知識が必要だった部分・理解が深まった部分: 実数aに対応する点と原点（0）からの距離を「aの絶対値」といい、｢ |a| 」と書くことがわかった。|-6+3|など一つの||の中に数字が2個以上並んだら先に||の中を計算して、計算して出た数字の絶対値を出せばいいことがわかった。−がつく数は−を外すことを意識した。また、循環小数は繰り返される数の上に「･」が使われていることがわかった。
@@ -521,16 +521,21 @@
 
         // Function to parse the raw text data
         function parseReportData(data) {
-            const students = data.split(/出席番号: (\d+)\n/).slice(1);
-            parsedReports = {}; // Reset parsedReports
+            const studentBlocks = data.split(/出席番号: (\d+)\n/).slice(1);
+            // Re-initialize allDates for a fresh parse
+            allDates = [];
+            parsedReports = {}; // Re-initialize parsedReports
 
-            for (let i = 0; i < students.length; i += 2) {
-                const studentId = students[i].trim();
-                const studentData = students[i + 1];
+            for (let i = 0; i < studentBlocks.length; i += 2) {
+                const studentId = studentBlocks[i].trim();
+                const studentDataFragment = studentBlocks[i + 1];
 
-                parsedReports[studentId] = [];
+                // Ensure the array for this student exists
+                if (!parsedReports[studentId]) {
+                    parsedReports[studentId] = [];
+                }
 
-                const reports = studentData.split(/(\d{4}年\d{2}月\d{2}日)\n/).slice(1);
+                const reports = studentDataFragment.split(/(\d{4}年\d{2}月\d{2}日)\n/).slice(1);
 
                 for (let j = 0; j < reports.length; j += 2) {
                     const date = reports[j].trim();
@@ -548,7 +553,10 @@
                     const thinkingScore = thinkingMatch ? parseInt(thinkingMatch[2]) : 'N/A';
                     const teacherComment = commentMatch ? commentMatch[1].trim() : 'N/A';
 
-                    parsedReports[studentId].push({
+                    // Check if a report for this student and date already exists to prevent duplicates
+                    const existingReportIndex = parsedReports[studentId].findIndex(r => r.date === date);
+
+                    const newReport = {
                         date: date,
                         objective: objective,
                         knowledge: {
@@ -560,16 +568,29 @@
                             score: thinkingScore
                         },
                         comment: teacherComment
-                    });
+                    };
 
-                    // Collect all unique dates
+                    if (existingReportIndex > -1) {
+                        // Update existing report if found (this handles the score updates)
+                        parsedReports[studentId][existingReportIndex] = newReport;
+                    } else {
+                        // Add new report
+                        parsedReports[studentId].push(newReport);
+                    }
+
+                    // Collect all unique dates - this part is fine
                     if (!allDates.includes(date)) {
                         allDates.push(date);
                     }
                 }
             }
-            // Sort dates chronologically
+            // Sort allDates chronologically
             allDates.sort((a, b) => new Date(a.replace(/年|月/g, '/').replace(/日/, '')) - new Date(b.replace(/年|月/g, '/').replace(/日/, '')));
+
+            // After all parsing, ensure each student's reports are sorted by date
+            Object.keys(parsedReports).forEach(studentId => {
+                parsedReports[studentId].sort((a, b) => new Date(a.date.replace(/年|月/g, '/').replace(/日/, '')) - new Date(b.date.replace(/年|月/g, '/').replace(/日/, '')));
+            });
         }
 
         // Function to render reports for a selected student
