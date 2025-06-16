@@ -14,75 +14,118 @@
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8; /* より明るく落ち着いた背景色 */
+            background-color: #f8fafc; /* Ultra-light background for the main app */
+            min-height: 100vh; /* Ensure body takes full viewport height */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* Align content to the top */
+            align-items: center;
         }
-        /* カスタムスクロールバー */
+        /* Custom scrollbar for better aesthetics */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: #e2e8f0; /* トラックの色をライトブルーグレーに */
+            background: #e2e8f0; /* Light blue-gray track color */
             border-radius: 10px;
         }
         ::-webkit-scrollbar-thumb {
-            background: #94a3b8; /* サムの色をミディアムグレーに */
+            background: #94a3b8; /* Medium gray thumb color */
             border-radius: 10px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #64748b; /* ホバー時のサムの色をダークグレーに */
+            background: #64748b; /* Darker gray thumb on hover */
+        }
+
+        /* Chart.js tooltip custom styling */
+        .chartjs-tooltip {
+            background: rgba(15, 23, 42, 0.9) !important; /* slate-900 with opacity */
+            border-radius: 0.5rem !important; /* rounded-lg */
+            padding: 0.75rem 1rem !important; /* p-3 px-4 */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important; /* shadow-lg */
+            font-size: 0.875rem !important; /* text-sm */
+            color: #f8fafc !important; /* slate-50 */
+            opacity: 1 !important; /* Ensure visibility */
+        }
+        .chartjs-tooltip-header {
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .chartjs-tooltip-body {
+            font-weight: 500;
+        }
+        .chartjs-tooltip-point-box {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            vertical-align: middle;
         }
     </style>
 </head>
-<body class="p-4 sm:p-6 md:p-8 lg:p-10">
-    <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 md:p-10">
-        <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-8 text-center">授業振り返りレポート</h1>
-
-        <!-- タブボタン -->
-        <div class="flex mb-8 rounded-lg bg-gray-100 p-1.5 shadow-inner">
-            <button id="student-tab-btn" class="flex-1 py-3 px-4 text-center rounded-lg font-semibold transition-all duration-300 ease-in-out bg-blue-600 text-white shadow-md hover:bg-blue-700 active:scale-95">
-                生徒別レポート
-            </button>
-            <button id="analysis-tab-btn" class="flex-1 py-3 px-4 text-center rounded-lg font-semibold transition-all duration-300 ease-in-out bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 active:scale-95">
-                日付ごとの割合分析
-            </button>
+<body class="p-4 sm:p-6 md:p-8 lg:p-12">
+    <!-- Main Application Container -->
+    <div id="main-app" class="max-w-4xl mx-auto rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
+        <!-- Top section with gradient background -->
+        <div class="p-6 sm:p-8 md:p-10 lg:p-12 text-white text-center rounded-t-3xl"
+             style="background: linear-gradient(135deg, #a78bfa 0%, #818cf8 100%);">
+            <h1 class="text-3xl sm:text-4xl font-extrabold mb-4 tracking-tight">授業振り返りレポート</h1>
+            <p class="text-lg sm:text-xl font-medium max-w-xl mx-auto mb-10 leading-relaxed opacity-90">
+                クラス全体の学習状況を多角的に分析し、<br>生徒一人ひとりの成長をサポートします。
+            </p>
+            <!-- Tab buttons -->
+            <div class="flex rounded-xl bg-white p-2 shadow-inner border border-gray-200">
+                <button id="student-tab-btn" class="flex-1 py-3.5 px-5 text-center rounded-lg font-bold text-lg transition-all duration-300 ease-in-out bg-blue-600 text-white shadow-lg hover:bg-blue-700 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    生徒別レポート
+                </button>
+                <button id="analysis-tab-btn" class="flex-1 py-3.5 px-5 text-center rounded-lg font-semibold text-lg transition-all duration-300 ease-in-out bg-transparent text-gray-700 hover:bg-gray-100 hover:text-gray-900 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    日付ごとの割合分析
+                </button>
+            </div>
         </div>
 
-        <!-- 生徒別レポートタブコンテンツ -->
-        <div id="student-reports-tab" class="">
-            <!-- 生徒選択ドロップダウン -->
-            <div class="mb-8">
-                <label for="student-select" class="block text-gray-700 text-base font-semibold mb-3">出席番号を選択:</label>
-                <div class="relative">
-                    <select id="student-select" class="block appearance-none w-full bg-gray-50 border border-gray-300 text-gray-800 py-3 px-4 pr-10 rounded-lg leading-tight focus:outline-none focus:bg-white focus:border-blue-500 transition-all duration-200 shadow-sm">
-                        <option value="">出席番号を選択してください</option>
-                    </select>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-700">
-                        <svg class="fill-current h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 6.757 7.586 5.343 9z"/></svg>
+        <!-- Content area below the gradient header -->
+        <div class="bg-white rounded-b-3xl p-6 sm:p-8 md:p-10 lg:p-12 border border-gray-100 border-t-0">
+            <!-- Student Reports Tab Content -->
+            <div id="student-reports-tab" class="">
+                <h2 class="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-8 tracking-tight">生徒別の学習カルテ</h2>
+                <p class="text-gray-700 leading-relaxed text-base mb-8">
+                    ドロップダウンメニューから出席番号を選択すると、その生徒個人の学習の軌跡が表示されます。評価点の推移グラフと、各授業での具体的な振り返り内容から、個々の成長と課題を確認できます。
+                </p>
+                <!-- Student Selector for Student Reports Tab -->
+                <div class="mb-10">
+                    <label for="student-select" class="block text-gray-800 text-base font-bold mb-3">出席番号を選択:</label>
+                    <div class="relative">
+                        <select id="student-select" class="block appearance-none w-full bg-white border border-gray-300 text-gray-800 py-3.5 px-5 pr-12 rounded-xl leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 shadow-md text-base">
+                            <option value="">出席番号を選択してください</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600">
+                            <svg class="fill-current h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 6.757 7.586 5.343 9z"/></svg>
+                        </div>
+                    </div>
+                </div>
+                <!-- Student Reports Display Area -->
+                <div id="student-reports-content" class="space-y-8">
+                    <div class="flex items-center justify-center p-16 text-gray-500 bg-gray-50 rounded-2xl shadow-inner border border-gray-200">
+                        <p class="text-xl font-medium">出席番号を選択してレポートを表示してください。</p>
                     </div>
                 </div>
             </div>
 
-            <!-- 生徒別レポート表示エリア -->
-            <div id="student-reports-content" class="space-y-6">
-                <div class="flex items-center justify-center p-12 text-gray-500 bg-gray-50 rounded-xl shadow-inner border border-gray-200">
-                    <p class="text-lg">出席番号を選択してレポートを表示してください。</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- 日付ごとの割合分析タブコンテンツ -->
-        <div id="analysis-tab" class="hidden">
-            <div id="analysis-content" class="space-y-6">
-                <div class="flex items-center justify-center p-12 text-gray-500 bg-gray-50 rounded-xl shadow-inner border border-gray-200">
-                    <p class="text-lg">日付ごとの割合分析がここに表示されます。</p>
+            <!-- Analysis Tab Content (initially hidden) -->
+            <div id="analysis-tab" class="hidden">
+                <div id="analysis-content" class="space-y-8">
+                    <!-- This content will be dynamically generated by renderAnalysisReports -->
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // 生徒のレポート生データ
+        // Raw report data provided by the user
         const rawReportData = `出席番号: 2
 2025年06月02日
 今回の授業の目標: 今までの計算方法の応用の因数分解を自分でちゃんと理解して計算できるようにすること
@@ -243,7 +286,7 @@
 今回の授業の目標: 絶対値がわかるようになる
 授業で知識が必要だった部分・理解が深まった部分: 絶対値の表し方がわかったり、求め方が理解できた
 知識・技能: 7点
-授業で思考力が必要だった場面・思考力が深まった部分: あたいの求め方がよく理解出来て、1人で解けるようになった
+授業で思考力が必要だった場面: あたいの求め方がよく理解出来て、1人で解けるようになった
 思考・判断: 6点
 先生からのコメント: 絶対値の概念と計算方法をしっかりと理解し、自力で問題が解けるようになったのは大きな進歩です。この調子で、様々な問題に挑戦してみてください。
 出席番号: 22
@@ -258,7 +301,7 @@
 今回の授業の目標: 絶対値を使えるようにする
 授業で知識が必要だった部分・理解が深まった部分: √や分数などを数直線に書くことができること
 知識・技能: 8点
-授業で思考力が必要だった部分・理解が深まった部分: 循環型少数などがわかること
+授業で思考力が必要だった場面・思考力が深まった部分: 循環型少数などがわかること
 思考・判断: 6点
 先生からのコメント: √や分数といった様々な数値を数直線上に表現できるようになったのは、数の概念への理解が深まった証拠です。循環小数についても理解ができたとのこと、着実に知識を広げていますね。
 2025年06月10日
@@ -420,9 +463,57 @@
 今回の授業の目標: ルートを使った計算法を学ぼう。
 授業で知識が必要だった部分・理解が深まった部分: 分母の有理化をするとき（ルートが付く場合の足し算の注意など）
 知識・技能: 9点
-授業で思考力が必要だった場面・思考力が深まった部分: ルートの足し算のとき、ルートの中の数字が異なる場合、足し算はできない。有理化の際は、分母の根号（ルート√）を分子と分母のどちらにも掛ける。
+授業で思考力が必要だった場面: ルートの足し算のとき、ルートの中の数字が異なる場合、足し算はできない。有理化の際は、分母の根号（ルート√）を分子と分母のどちらにも掛ける。
 思考・判断: 8点
-先生からのコメント: ルートの足し算と有理化のルールについて、重要な点をしっかり理解できたようですね。特に、分母に足し算がある場合の有理化の注意点を把握できたのは素晴らしいです。`;
+先生からのコメント: ルートの足し算と有理化のルールについて、重要な点をしっかり理解できたようですね。特に、分母に足し算がある場合の有理化の注意点を把握できたのは素晴らしいです。
+出席番号: 6
+2025年06月16日
+今回の授業の目標: 不等式を解けるようにする
+授業で知識が必要だった部分・理解が深まった部分: マイナスで割るときは符号を逆にする
+知識・技能: 7点
+授業で思考力が必要だった場面・思考力が深まった部分: a＜bで割り切れないときはX＜分数にしてとく
+思考・判断: 8点
+先生からのコメント: 不等式の基本的なルールをしっかりと理解できましたね。特にマイナスで割るときの符号の向きの変化は重要です。割り切れない場合の表現方法についても思考を深められているようです。
+出席番号: 16
+2025年06月16日
+今回の授業の目標: 一次不等式の解き方をマスターする
+授業で知識が必要だった部分・理解が深まった部分: 一次不等式はルールは方程式と同じ解き方で、移行をすることがわかった。また、式をわるときはーが＋になったり、＋がーになることもわかった。
+知識・技能: 9点
+授業で思考力が必要だった場面・思考力が深まった部分: 割ったときにーや＋のつけ間違えなどに気をつけることが大切だと思った。
+思考・判断: 7点
+先生からのコメント: 一次不等式の基本的な解法をマスターできたようですね。方程式との共通点や、符号の変化に注意するべき点も理解できています。計算ミスを防ぐ意識も高く、丁寧な学習姿勢が見られます。
+出席番号: 17
+2025年06月16日
+今回の授業の目標: 一次不等式の解き方を知ろう
+授業で知識が必要だった部分・理解が深まった部分: 両辺を負の数で割っているときは不等号の向きが変わることやかっこを含む不等式はカッコを外してから問題を解くということがわかった
+知識・技能: 8点
+授業で思考力が必要だった場面・思考力が深まった部分: やったことのない問題を解いたとき
+思考・判断: 6点
+先生からのコメント: 一次不等式の重要なルールをしっかりと理解できたようですね。特に負の数で割る際の不等号の向きの変化や、カッコを含む不等式の解き方を学べたのは大きな進歩です。未知の問題にも積極的に取り組む姿勢が素晴らしいです。
+出席番号: 22
+2025年06月16日
+今回の授業の目標: 不等号を使えるようにする
+授業で知識が必要だった部分・理解が深まった部分: 今回は、マイナスとプラスがありマイナスは、不等号の向きが変わったりしたので難しかったが移行するとマイナスになるという知識が必要だった。
+知識・技能: 9点
+授業で思考力が必要だった場面・思考力が深まった部分: 樋口くんに答え合わせをしてもらったり對比地くんにおしえたりした
+思考・判断: 8点
+先生からのコメント: 不等号の扱い、特にマイナス符号での変化や移行のルールを理解できたのは素晴らしいです。樋口くんとの答え合わせや對比地くんへの指導を通じて、知識の定着と応用力がさらに高まったことでしょう。
+出席番号: 24
+2025年06月16日
+今回の授業の目標: 不等号の解き方やルールを理解することを目標にした。
+授業で知識が必要だった部分・理解が深まった部分: 移行を忘れずにできた。また、移行をするときにマイナスを外して移行したり問題をやる内に凡ミスが多くなっていたので問題が多くてもしっかりと凡ミスをしないようにしたい。
+知識・技能: 9点
+授業で思考力が必要だった場面・思考力が深まった部分: 分母がマイナスになると不等号が変わることを忘れることが多く間違いが多かった。けど途中からミスが減り問題がスラスラ解けるようになった。
+思考・判断: 9点
+先生からのコメント: 不等号の解き方やルールを目標に掲げ、移行の際の注意点や凡ミスへの意識など、自己の課題を具体的に捉えられていますね。特に、間違いから学び、問題をスムーズに解けるようになったのは、努力の成果です。
+出席番号: 32
+2025年06月16日
+今回の授業の目標: 1次不等式を理解する
+授業で知識が必要だった部分・理解が深まった部分: 移行をするとき
+知識・技能: 6点
+授業で思考力が必要だった場面・思考力が深まった部分: 負の数で割るときに不等式の向きが変わる
+思考・判断: 7点
+先生からのコメント: 1次不等式に関する基本的な理解は進んでいるようですね。移行のルールや、負の数で割る際の不等号の向きの変化といった重要な点に注目できたのは素晴らしいです。`;
 
         // Object to store parsed reports, keyed by student ID
         let parsedReports = {};
@@ -488,8 +579,8 @@
 
             if (!studentId) {
                 reportsContainer.innerHTML = `
-                    <div class="flex items-center justify-center p-12 text-gray-500 bg-gray-50 rounded-xl shadow-inner border border-gray-200">
-                        <p class="text-lg">出席番号を選択してレポートを表示してください。</p>
+                    <div class="flex items-center justify-center p-16 text-gray-500 bg-gray-50 rounded-2xl shadow-inner border border-gray-200">
+                        <p class="text-xl font-medium">出席番号を選択してレポートを表示してください。</p>
                     </div>
                 `;
                 return;
@@ -499,8 +590,8 @@
 
             if (!studentReports || studentReports.length === 0) {
                 reportsContainer.innerHTML = `
-                    <div class="flex items-center justify-center p-12 text-red-600 bg-red-50 rounded-xl shadow-inner border border-red-200">
-                        <p class="text-xl font-bold">この生徒はまだレポートを提出していません。</p>
+                    <div class="flex items-center justify-center p-16 text-red-600 bg-red-50 rounded-2xl shadow-inner border border-red-200">
+                        <p class="text-2xl font-bold">この生徒はまだレポートを提出していません。</p>
                     </div>
                 `;
                 return;
@@ -511,32 +602,32 @@
 
                 if (reportForDate) {
                     const reportCard = document.createElement('div');
-                    reportCard.className = 'bg-white p-6 rounded-xl shadow-lg border-t-4 border-blue-500';
+                    reportCard.className = 'bg-white p-6 rounded-2xl shadow-lg border-t-4 border-blue-500';
                     reportCard.innerHTML = `
                         <h3 class="text-xl font-bold text-gray-800 mb-4">${reportForDate.date}</h3>
                         <div class="mb-4">
                             <p class="text-base text-gray-600 font-semibold mb-2">今回の授業の目標:</p>
-                            <p class="text-gray-800 ml-2">${reportForDate.objective}</p>
+                            <p class="text-gray-800 ml-2 leading-relaxed">${reportForDate.objective}</p>
                         </div>
-                        <div class="flex flex-col sm:flex-row sm:space-x-4 mb-4">
-                            <div class="flex-1 bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4 sm:mb-0">
+                        <div class="flex flex-col sm:flex-row sm:space-x-6 mb-4">
+                            <div class="flex-1 bg-blue-50 p-5 rounded-xl border border-blue-200 mb-4 sm:mb-0 shadow-sm">
                                 <p class="text-base text-blue-700 font-semibold mb-2">知識・技能:</p>
-                                <p class="text-blue-800 text-sm">${reportForDate.knowledge.text}</p>
+                                <p class="text-blue-800 text-sm leading-relaxed">${reportForDate.knowledge.text}</p>
                             </div>
-                            <div class="flex-1 bg-green-50 p-4 rounded-lg border border-green-200">
+                            <div class="flex-1 bg-green-50 p-5 rounded-xl border border-green-200 shadow-sm">
                                 <p class="text-base text-green-700 font-semibold mb-2">思考・判断:</p>
-                                <p class="text-green-800 text-sm">${reportForDate.thinking.text}</p>
+                                <p class="text-green-800 text-sm leading-relaxed">${reportForDate.thinking.text}</p>
                             </div>
                         </div>
-                        <div class="bg-yellow-50 p-4 rounded-lg mt-4 border border-yellow-300 shadow-sm">
-                            <p class="text-base text-yellow-700 font-semibold mb-2">先生からのコメント:</p>
-                            <p class="text-yellow-800 ml-2">${reportForDate.comment}</p>
+                        <div class="bg-yellow-50 p-5 rounded-xl mt-4 border border-yellow-300 shadow-sm">
+                            <p class="text-base text-amber-700 font-semibold mb-2">先生からのコメント:</p>
+                            <p class="text-amber-800 ml-2 leading-relaxed">${reportForDate.comment}</p>
                         </div>
                     `;
                     reportsContainer.appendChild(reportCard);
                 } else {
                     const notSubmittedCard = document.createElement('div');
-                    notSubmittedCard.className = 'bg-gray-100 p-8 rounded-xl shadow-inner border-t-4 border-gray-400 text-center';
+                    notSubmittedCard.className = 'bg-gray-100 p-10 rounded-2xl shadow-inner border-t-4 border-gray-400 text-center';
                     notSubmittedCard.innerHTML = `
                         <h3 class="text-xl font-bold text-gray-700 mb-4">${date}</h3>
                         <p class="text-3xl font-extrabold text-red-500">未提出</p>
@@ -629,7 +720,8 @@
             for (let i = 0; i < count; i++) {
                 // Adjust factor to ensure 10 is darkest, 0 is lightest
                 // We want highest score (index 10) to be darkest, lowest (index 0) to be lightest.
-                const factor = (i / (count - 1)); // 0 for lowest score, 1 for highest score
+                // Factor ranges from 0 (lightest, score 0) to 1 (darkest, score 10).
+                const factor = i / (count - 1); 
                 const blendR = Math.round(r * factor + 255 * (1 - factor));
                 const blendG = Math.round(g * factor + 255 * (1 - factor));
                 const blendB = Math.round(b * factor + 255 * (1 - factor));
@@ -639,8 +731,8 @@
         }
 
         // Define base colors for Knowledge and Thinking
-        const baseBlue = '#3B82F6'; // Tailwind blue-500
-        const baseGreen = '#10B981'; // Tailwind green-500
+        const baseBlue = '#2563EB'; // Tailwind blue-600
+        const baseGreen = '#059669'; // Tailwind emerald-600 (darker green)
 
         // Generate shades for scores (0 to 10 points, so 11 shades)
         // Note: Array index 0 will be for score 0, index 10 for score 10.
@@ -650,12 +742,13 @@
         // Function to render analysis reports with charts
         function renderAnalysisReports() {
             const analysisContainer = document.getElementById('analysis-content');
+            // Clear previous analysis content for dynamic re-rendering
             analysisContainer.innerHTML = `
-                <div class="mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-2">授業日ごとの点数割合</h2>
-                    <p class="text-gray-600">ここでは、各授業日における「知識の習得」と「思考力の深化」の各点数を取得した生徒の割合を円グラフで表示します。また、その日の生徒の感想もいくつか掲載しています。</p>
-                </div>
-                <div id="date-tabs" class="flex mb-6 rounded-lg bg-gray-200 p-1"></div>
+                <h2 class="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-8 tracking-tight">授業日ごとの点数割合</h2>
+                <p class="text-gray-700 leading-relaxed text-base mb-8">
+                    ここでは、各授業日における「知識の習得」と「思考力の深化」の各点数を取得した生徒の割合を円グラフで表示します。また、その日の生徒の感想もいくつか掲載しています。
+                </p>
+                <div id="date-tabs" class="flex mb-8 rounded-xl bg-gray-50 p-1.5 shadow-inner border border-gray-200"></div>
                 <div id="date-analysis-content"></div>
             `;
 
@@ -666,7 +759,7 @@
             allDates.forEach((date, index) => {
                 const button = document.createElement('button');
                 button.id = `date-tab-${index}`;
-                button.className = `flex-1 py-3 px-4 text-center rounded-lg font-semibold transition-all duration-300 ease-in-out ${index === 0 ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'} active:scale-95`;
+                button.className = `flex-1 py-3.5 px-5 text-center rounded-lg font-bold text-lg transition-all duration-300 ease-in-out ${index === 0 ? 'bg-blue-600 text-white shadow-md' : 'bg-transparent text-gray-700 hover:bg-gray-100 hover:text-gray-900'} active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-blue-300`;
                 button.textContent = date.split('年')[1].replace('月', '月').replace('日', '日'); // Format to "6月2日"
                 button.addEventListener('click', () => showDateAnalysis(date, index));
                 dateTabsContainer.appendChild(button);
@@ -676,9 +769,9 @@
             if (allDates.length > 0) {
                 showDateAnalysis(allDates[0], 0);
             } else {
-                analysisContainer.innerHTML = `
-                    <div class="flex items-center justify-center p-12 text-gray-500 bg-gray-50 rounded-xl shadow-inner border border-gray-200">
-                        <p class="text-lg">分析データがありません。レポートがまだ提出されていない可能性があります。</p>
+                dateAnalysisContent.innerHTML = `
+                    <div class="flex items-center justify-center p-16 text-gray-500 bg-gray-50 rounded-2xl shadow-inner border border-gray-200">
+                        <p class="text-xl font-medium">分析データがありません。レポートがまだ提出されていない可能性があります。</p>
                     </div>
                 `;
             }
@@ -688,25 +781,27 @@
 
         function showDateAnalysis(date, tabIndex) {
             const dateAnalysisContent = document.getElementById('date-analysis-content');
-            dateAnalysisContent.innerHTML = ''; // Clear previous content
+            dateAnalysisContent.innerHTML = ''; // Clear previous content for new date's analysis
 
             // Update tab button styles
             allDates.forEach((d, i) => {
                 const btn = document.getElementById(`date-tab-${i}`);
-                if (i === tabIndex) {
-                    btn.classList.add('bg-blue-600', 'text-white', 'shadow-md');
-                    btn.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200', 'hover:text-gray-900');
-                } else {
-                    btn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
-                    btn.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200', 'hover:text-gray-900');
+                if (btn) { // Ensure button exists before manipulating classes
+                    if (i === tabIndex) {
+                        btn.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+                        btn.classList.remove('bg-transparent', 'text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
+                    } else {
+                        btn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+                        btn.classList.add('bg-transparent', 'text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
+                    }
                 }
             });
 
             const dataForDate = analysisData[date];
             if (!dataForDate || dataForDate.totalStudents === 0) {
                 dateAnalysisContent.innerHTML = `
-                    <div class="flex items-center justify-center p-12 text-gray-500 bg-gray-50 rounded-xl shadow-inner border border-gray-200">
-                        <p class="text-lg">この日の分析データはありません。</p>
+                    <div class="flex items-center justify-center p-16 text-gray-500 bg-gray-50 rounded-2xl shadow-inner border border-gray-200">
+                        <p class="text-xl font-medium">この日の分析データはありません。</p>
                     </div>
                 `;
                 return;
@@ -727,95 +822,138 @@
 
 
             const sectionDiv = document.createElement('div');
-            sectionDiv.className = 'bg-white p-6 rounded-xl shadow-lg border-t-4 border-purple-500';
+            sectionDiv.className = 'bg-white p-8 rounded-2xl shadow-xl border border-gray-100';
             sectionDiv.innerHTML = `
-                <h3 class="text-2xl font-bold text-gray-800 mb-4">${date} : 点数別生徒割合</h3>
-                <p class="text-gray-700 mb-2">この日の生徒総数: <span class="font-bold">${dataForDate.totalStudents}名</span></p>
-                <p class="text-gray-700 mb-6">平均点: 知識の習得 <span class="font-bold text-blue-600">${dataForDate.avgKnowledge}点</span>、思考力の深化 <span class="font-bold text-green-600">${dataForDate.avgThinking}点</span></p>
+                <h3 class="text-2xl font-bold text-gray-900 mb-5">${date} : 点数別生徒割合</h3>
+                <p class="text-gray-700 mb-2">この日の生徒総数: <span class="font-bold text-gray-900">${dataForDate.totalStudents}名</span></p>
+                <p class="text-gray-700 mb-8">平均点: 知識の習得 <span class="font-bold text-blue-600">${dataForDate.avgKnowledge}点</span>、思考力の深化 <span class="font-bold text-emerald-600">${dataForDate.avgThinking}点</span></p>
 
-                <div class="flex flex-col md:flex-row md:space-x-8 mb-10">
-                    <div class="flex-1 mb-8 md:mb-0 bg-gray-50 p-4 rounded-xl shadow-md border border-gray-200">
-                        <h4 class="text-lg font-semibold text-blue-700 mb-4 text-center">知識の習得</h4>
+                <div class="flex flex-col md:flex-row md:space-x-10 mb-12">
+                    <div class="flex-1 mb-8 md:mb-0 bg-gray-50 p-6 rounded-2xl shadow-md border border-gray-200">
+                        <h4 class="text-xl font-semibold text-blue-700 mb-5 text-center">知識の習得</h4>
                         <canvas id="knowledgeChart-${date}"></canvas>
                     </div>
-                    <div class="flex-1 bg-gray-50 p-4 rounded-xl shadow-md border border-gray-200">
-                        <h4 class="text-lg font-semibold text-green-700 mb-4 text-center">思考力の深化</h4>
+                    <div class="flex-1 bg-gray-50 p-6 rounded-2xl shadow-md border border-gray-200">
+                        <h4 class="text-xl font-semibold text-emerald-700 mb-5 text-center">思考力の深化</h4>
                         <canvas id="thinkingChart-${date}"></canvas>
                     </div>
                 </div>
 
-                <div class="learning-content mb-10 p-5 bg-gray-50 rounded-xl shadow-md border border-gray-200">
-                    <h4 class="text-xl font-bold text-gray-800 mb-3">この日の学習の内容</h4>
-                    <p class="text-gray-700 leading-relaxed">${getLearningContentForDate(date)}</p>
+                <div class="learning-content mb-12 p-6 bg-gray-50 rounded-2xl shadow-md border border-gray-200">
+                    <h4 class="text-xl font-bold text-gray-900 mb-4">この日の学習の内容</h4>
+                    <p class="text-gray-700 leading-relaxed text-base">${getLearningContentForDate(date)}</p>
                 </div>
 
                 <div class="high-rated-feedback">
-                    <h4 class="text-xl font-bold text-gray-800 mb-6">この日の高評価だった生徒の感想</h4>
+                    <h4 class="text-xl font-bold text-gray-900 mb-6">この日の高評価だった生徒の感想</h4>
+                    
+                    <!-- New Tabs for Feedback -->
+                    <div class="flex mb-8 rounded-xl bg-gray-100 p-1.5 shadow-inner border border-gray-200">
+                        <button id="feedback-knowledge-tab-btn-${date}" class="flex-1 py-3 px-4 text-center rounded-lg font-semibold transition-all duration-300 ease-in-out bg-blue-600 text-white shadow-md hover:bg-blue-700 active:scale-95">
+                            知識・技能
+                        </button>
+                        <button id="feedback-thinking-tab-btn-${date}" class="flex-1 py-3 px-4 text-center rounded-lg font-semibold transition-all duration-300 ease-in-out bg-transparent text-gray-700 hover:bg-gray-200 hover:text-gray-900 active:scale-95">
+                            思考・判断
+                        </button>
+                    </div>
 
-                    <!-- Knowledge High Rated Students -->
-                    <h5 class="text-lg font-semibold text-blue-700 mb-4">知識・技能で高評価の生徒 (上位${topKnowledgeStudents.length}名)</h5>
-                    ${topKnowledgeStudents.length > 0 ?
-                        topKnowledgeStudents.map(feedback => `
-                            <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border-t-4 border-blue-500">
-                                <p class="text-base text-gray-700 mb-3"><strong>出席番号:</strong> ${feedback.studentId}</p>
-                                <div class="mb-4">
-                                    <p class="text-sm text-gray-600 font-semibold mb-2">今回の授業の目標:</p>
-                                    <p class="text-gray-800 ml-2 leading-relaxed">${feedback.objective}</p>
-                                </div>
-                                <div class="flex flex-col sm:flex-row sm:space-x-6 mb-4">
-                                    <div class="flex-1 bg-blue-50 p-5 rounded-xl border border-blue-200 mb-4 sm:mb-0 shadow-sm">
-                                        <p class="text-base text-blue-700 font-semibold mb-2">知識・技能: <span class="font-bold text-blue-600">${feedback.knowledgeScore}点</span></p>
-                                        <p class="text-blue-800 text-sm leading-relaxed">${feedback.knowledgeText}</p>
+                    <!-- Feedback Content Areas -->
+                    <div id="feedback-knowledge-content-${date}" class="feedback-content">
+                        ${topKnowledgeStudents.length > 0 ?
+                            topKnowledgeStudents.map(feedback => `
+                                <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border-t-4 border-blue-500">
+                                    <p class="text-base text-gray-800 mb-3"><strong>出席番号:</strong> ${feedback.studentId}</p>
+                                    <div class="mb-4">
+                                        <p class="text-sm text-gray-600 font-semibold mb-2">今回の授業の目標:</p>
+                                        <p class="text-gray-800 ml-2 leading-relaxed">${feedback.objective}</p>
                                     </div>
-                                    <div class="flex-1 bg-green-50 p-5 rounded-xl border border-green-200 shadow-sm">
-                                        <p class="text-base text-green-700 font-semibold mb-2">思考・判断: <span class="font-bold text-green-600">${feedback.thinkingScore}点</span></p>
-                                        <p class="text-green-800 text-sm leading-relaxed">${feedback.thinkingText}</p>
+                                    <div class="flex flex-col sm:flex-row sm:space-x-6 mb-4">
+                                        <div class="flex-1 bg-blue-50 p-5 rounded-xl border border-blue-200 mb-4 sm:mb-0 shadow-sm">
+                                            <p class="text-base text-blue-700 font-semibold mb-2">知識・技能: <span class="font-bold text-blue-600">${feedback.knowledgeScore}点</span></p>
+                                            <p class="text-blue-800 text-sm leading-relaxed">${feedback.knowledgeText}</p>
+                                        </div>
+                                        <div class="flex-1 bg-green-50 p-5 rounded-xl border border-green-200 shadow-sm">
+                                            <p class="text-base text-emerald-700 font-semibold mb-2">思考・判断: <span class="font-bold text-emerald-600">${feedback.thinkingScore}点</span></p>
+                                            <p class="text-emerald-800 text-sm leading-relaxed">${feedback.thinkingText}</p>
+                                        </div>
+                                    </div>
+                                    <div class="bg-yellow-50 p-5 rounded-xl mt-4 border border-yellow-300 shadow-sm">
+                                        <p class="text-base text-amber-700 font-semibold mb-2">先生からのコメント:</p>
+                                        <p class="text-amber-800 ml-2 leading-relaxed">${feedback.comment}</p>
                                     </div>
                                 </div>
-                                <div class="bg-yellow-50 p-5 rounded-xl mt-4 border border-yellow-300 shadow-sm">
-                                    <p class="text-base text-amber-700 font-semibold mb-2">先生からのコメント:</p>
-                                    <p class="text-amber-800 ml-2 leading-relaxed">${feedback.comment}</p>
-                                </div>
-                            </div>
-                        `).join('')
-                        : '<p class="text-gray-500 text-center py-6 bg-gray-50 rounded-xl border border-gray-200">知識・技能で高評価の生徒はいませんでした。</p>'
-                    }
+                            `).join('')
+                            : '<p class="text-gray-500 text-center py-6 bg-gray-50 rounded-xl border border-gray-200">知識・技能で高評価の生徒はいませんでした。</p>'
+                        }
+                    </div>
 
-                    <!-- Thinking High Rated Students -->
-                    <h5 class="text-lg font-semibold text-green-700 mb-4 mt-12">思考・判断で高評価の生徒 (上位${topThinkingStudents.length}名)</h5>
-                    ${topThinkingStudents.length > 0 ?
-                        topThinkingStudents.map(feedback => `
-                            <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border-t-4 border-green-500">
-                                <p class="text-base text-gray-700 mb-3"><strong>出席番号:</strong> ${feedback.studentId}</p>
-                                <div class="mb-4">
-                                    <p class="text-sm text-gray-600 font-semibold mb-2">今回の授業の目標:</p>
-                                    <p class="text-gray-800 ml-2 leading-relaxed">${feedback.objective}</p>
-                                </div>
-                                <div class="flex flex-col sm:flex-row sm:space-x-6 mb-4">
-                                    <div class="flex-1 bg-blue-50 p-5 rounded-xl border border-blue-200 mb-4 sm:mb-0 shadow-sm">
-                                        <p class="text-base text-blue-700 font-semibold mb-2">知識・技能: <span class="font-bold text-blue-600">${feedback.knowledgeScore}点</span></p>
-                                        <p class="text-blue-800 text-sm leading-relaxed">${feedback.knowledgeText}</p>
+                    <div id="feedback-thinking-content-${date}" class="feedback-content hidden">
+                        ${topThinkingStudents.length > 0 ?
+                            topThinkingStudents.map(feedback => `
+                                <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border-t-4 border-emerald-500">
+                                    <p class="text-base text-gray-800 mb-3"><strong>出席番号:</strong> ${feedback.studentId}</p>
+                                    <div class="mb-4">
+                                        <p class="text-sm text-gray-600 font-semibold mb-2">今回の授業の目標:</p>
+                                        <p class="text-gray-800 ml-2 leading-relaxed">${feedback.objective}</p>
                                     </div>
-                                    <div class="flex-1 bg-green-50 p-5 rounded-xl border border-green-200 shadow-sm">
-                                        <p class="text-base text-green-700 font-semibold mb-2">思考・判断: <span class="font-bold text-green-600">${feedback.thinkingScore}点</span></p>
-                                        <p class="text-green-800 text-sm leading-relaxed">${feedback.thinkingText}</p>
+                                    <div class="flex flex-col sm:flex-row sm:space-x-6 mb-4">
+                                        <div class="flex-1 bg-blue-50 p-5 rounded-xl border border-blue-200 mb-4 sm:mb-0 shadow-sm">
+                                            <p class="text-base text-blue-700 font-semibold mb-2">知識・技能: <span class="font-bold text-blue-600">${feedback.knowledgeScore}点</span></p>
+                                            <p class="text-blue-800 text-sm leading-relaxed">${feedback.knowledgeText}</p>
+                                        </div>
+                                        <div class="flex-1 bg-green-50 p-5 rounded-xl border border-green-200 shadow-sm">
+                                            <p class="text-base text-emerald-700 font-semibold mb-2">思考・判断: <span class="font-bold text-emerald-600">${feedback.thinkingScore}点</span></p>
+                                            <p class="text-emerald-800 text-sm leading-relaxed">${feedback.thinkingText}</p>
+                                        </div>
+                                    </div>
+                                    <div class="bg-yellow-50 p-5 rounded-xl mt-4 border border-yellow-300 shadow-sm">
+                                        <p class="text-base text-amber-700 font-semibold mb-2">先生からのコメント:</p>
+                                        <p class="text-amber-800 ml-2 leading-relaxed">${feedback.comment}</p>
                                     </div>
                                 </div>
-                                <div class="bg-yellow-50 p-5 rounded-xl mt-4 border border-yellow-300 shadow-sm">
-                                    <p class="text-base text-amber-700 font-semibold mb-2">先生からのコメント:</p>
-                                    <p class="text-amber-800 ml-2 leading-relaxed">${feedback.comment}</p>
-                                </div>
-                            </div>
-                        `).join('')
-                        : '<p class="text-gray-500 text-center py-6 bg-gray-50 rounded-xl border border-gray-200">思考・判断で高評価の生徒はいませんでした。</p>'
-                    }
+                            `).join('')
+                            : '<p class="text-gray-500 text-center py-6 bg-gray-50 rounded-xl border border-gray-200">思考・判断で高評価の生徒はいませんでした。</p>'
+                        }
+                    </div>
                 </div>
             `;
             dateAnalysisContent.appendChild(sectionDiv);
 
+            // Add event listeners for new feedback tabs after they are rendered
+            document.getElementById(`feedback-knowledge-tab-btn-${date}`).addEventListener('click', () => {
+                showFeedbackTab('knowledge', date);
+            });
+            document.getElementById(`feedback-thinking-tab-btn-${date}`).addEventListener('click', () => {
+                showFeedbackTab('thinking', date);
+            });
+
             // Create new charts and store instances
             currentChartInstances[`knowledgeChart-${date}`] = createPieChart(`knowledgeChart-${date}`, dataForDate.knowledgeScores, knowledgeColors);
             currentChartInstances[`thinkingChart-${date}`] = createPieChart(`thinkingChart-${date}`, dataForDate.thinkingScores, thinkingColors);
+        }
+
+        // Function to switch between knowledge and thinking feedback tabs
+        function showFeedbackTab(tabType, date) {
+            const knowledgeBtn = document.getElementById(`feedback-knowledge-tab-btn-${date}`);
+            const thinkingBtn = document.getElementById(`feedback-thinking-tab-btn-${date}`);
+            const knowledgeContent = document.getElementById(`feedback-knowledge-content-${date}`);
+            const thinkingContent = document.getElementById(`feedback-thinking-content-${date}`);
+
+            if (tabType === 'knowledge') {
+                knowledgeBtn.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+                knowledgeBtn.classList.remove('bg-transparent', 'text-gray-700', 'hover:bg-gray-200', 'hover:text-gray-900');
+                thinkingBtn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+                thinkingBtn.classList.add('bg-transparent', 'text-gray-700', 'hover:bg-gray-200', 'hover:text-gray-900');
+                knowledgeContent.classList.remove('hidden');
+                thinkingContent.classList.add('hidden');
+            } else { // thinking
+                thinkingBtn.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+                thinkingBtn.classList.remove('bg-transparent', 'text-gray-700', 'hover:bg-gray-200', 'hover:text-gray-900');
+                knowledgeBtn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+                knowledgeBtn.classList.add('bg-transparent', 'text-gray-700', 'hover:bg-gray-200', 'hover:text-gray-900');
+                knowledgeContent.classList.add('hidden');
+                thinkingContent.classList.remove('hidden');
+            }
         }
 
         // Helper function to create a pie chart
@@ -826,7 +964,8 @@
             // Sort data by score in descending order for clockwise display
             const sortedEntries = Object.entries(scoresData)
                 .filter(([key, value]) => value > 0)
-                .sort(([keyA, valueA], [keyB, valueB]) => parseInt(keyB) - parseInt(keyA)); // Sort descending by score
+                .sort(([key, value]) => parseInt(key)) // Sort ascending by score for Chart.js pie chart order
+                .reverse(); // Reverse to get descending order for visual display
 
             const labels = sortedEntries.map(([key, value]) => `${key}点`);
             const data = sortedEntries.map(([key, value]) => value);
@@ -901,6 +1040,8 @@
                     return 'この日は、中学校で習った有理数、有限小数、無理数などを復習し、理解を深めました。特に絶対値の概念、その表記法、そして|√2−5|のような複雑な形での計算方法について学びました。循環小数の表し方についても触れました。';
                 case '2025年06月10日':
                     return 'この日は、ルートを使った分母の有理化の方法を思い出し、因数分解を活用した有理化の方法を習得しました。分母にルートの和や差がある場合の有理化（例：√5＋√3）に焦点を当て、約分を意識した効率的な計算方法を学びました。';
+                case '2025年06月16日':
+                    return 'この日は、一次不等式の解き方とそのルール、特に負の数で割る際の不等号の向きの変化について学びました。カッコを含む不等式の解法や、割り切れない場合の表現方法についても触れ、計算ミスを防ぐための注意点を確認しました。';
                 default:
                     return 'この日の学習内容はまだ登録されていません。';
             }
@@ -915,9 +1056,9 @@
 
             if (tabName === 'student') {
                 studentTabBtn.classList.add('bg-blue-600', 'text-white', 'shadow-md');
-                studentTabBtn.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200', 'hover:text-gray-900');
+                studentTabBtn.classList.remove('bg-transparent', 'text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
                 analysisTabBtn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
-                analysisTabBtn.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200', 'hover:text-gray-900');
+                analysisTabBtn.classList.add('bg-transparent', 'text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
                 studentTabContent.classList.remove('hidden');
                 analysisTabContent.classList.add('hidden');
                 // Ensure initial student report is shown if a student is already selected
@@ -926,16 +1067,16 @@
                     renderStudentReports(selectedStudentId);
                 } else {
                      document.getElementById('student-reports-content').innerHTML = `
-                        <div class="flex items-center justify-center p-12 text-gray-500 bg-gray-50 rounded-xl shadow-inner border border-gray-200">
-                            <p class="text-lg">出席番号を選択してレポートを表示してください。</p>
+                        <div class="flex items-center justify-center p-16 text-gray-500 bg-gray-50 rounded-2xl shadow-inner border border-gray-200">
+                            <p class="text-xl font-medium">出席番号を選択してレポートを表示してください。</p>
                         </div>
                     `;
                 }
             } else { // analysis
                 analysisTabBtn.classList.add('bg-blue-600', 'text-white', 'shadow-md');
-                analysisTabBtn.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200', 'hover:text-gray-900');
+                analysisTabBtn.classList.remove('bg-transparent', 'text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
                 studentTabBtn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
-                studentTabBtn.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200', 'hover:text-gray-900');
+                studentTabBtn.classList.add('bg-transparent', 'text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
                 studentTabContent.classList.add('hidden');
                 analysisTabContent.classList.remove('hidden');
                 
@@ -968,7 +1109,7 @@
                 renderStudentReports(selectedStudentId);
             });
 
-            // Event listeners for tab buttons
+            // Event listeners for tab buttons (inside main app)
             studentTabBtn.addEventListener('click', () => activateTab('student'));
             analysisTabBtn.addEventListener('click', () => activateTab('analysis'));
 
